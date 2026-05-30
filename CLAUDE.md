@@ -1,466 +1,444 @@
-## CLAUDE.md — Pickleball Booking System (PBS) v1.0
+# CLAUDE.md - Pickleball Booking System
 
-Hệ Thống Đặt Sân Pickleball Trực Tuyến (Mô hình Web-Only)
+Tài liệu hướng dẫn cho AI Agent khi làm việc trong dự án Pickleball Booking System.
 
-1. TL;DR (Đọc trước — 60 giây)
+## 1. Tổng Quan Dự Án
 
-Đây là hệ thống đặt sân Pickleball (Pickleball Booking System) vận hành hoàn
-toàn trên nền tảng Web:
+Dự án là hệ thống đặt sân pickleball trực tuyến cho **một sân/cơ sở tại Hà Nội**.
 
-  - Backend: Node.js (Express) + MongoDB (Mongoose) - Viết bằng JavaScript
-    thuần.
-  - Frontend: React + Tailwind CSS + Vite - Viết bằng JavaScript thuần (JSX), hỗ
-    trợ hiển thị đáp ứng (Responsive) tốt trên cả máy tính và điện thoại di động
-    [ADR-001, ADR-002].
-  - Xử lý khóa trùng lịch: Sử dụng cơ chế khóa tạm thời trực tiếp trên MongoDB
-    (TTL Collection) thay vì các hệ thống lưu trữ ngoài [ADR-003].
-  - Quy mô: 3 cụm sân (Hà Nội, Đà Nẵng, Hồ Chí Minh), tổng cộng 15+ sân (trong
-    nhà/ngoài trời), 5000+ người dùng, 2000+ lượt đặt sân/tháng.
+Phạm vi hiện tại:
 
-Tài liệu cần đọc trước khi code:
+- Không quản lý nhiều khu vực.
+- Không quản lý nhiều chi nhánh.
+- Chỉ quản lý một cơ sở pickleball tại Hà Nội.
+- Người dùng có thể xem lịch trống, đặt sân, thanh toán, hủy lịch và xem lịch sử đặt sân.
+- Staff/Admin quản lý lịch đặt sân, trạng thái sân, sản phẩm thuê kèm, thanh toán và báo cáo cơ bản.
 
-  - AGENTS.md → Quy chuẩn toàn diện cho AI Agent (Tech stack, domain model).
-  - CONSTITUTION.md → Nguyên tắc phát triển và thỏa thuận của đội ngũ.
-  - File này (CLAUDE.md) → Quy trình làm việc, mẫu thiết kế và quy ước của dự
-    án.
+## 2. Tech Stack
 
-2. KIẾN TRÚC HỆ THỐNG
+| Tầng | Công nghệ | Ghi chú |
+| --- | --- | --- |
+| Frontend | React + Vite | Xây dựng giao diện web |
+| Backend | Node.js + Express | Xây dựng REST API |
+| Database | MongoDB + Mongoose | Lưu dữ liệu chính |
+| Styling | Tailwind CSS | Nếu project đang dùng |
+| Auth | JWT + bcrypt | Đăng nhập và bảo mật mật khẩu |
 
-2.1 Sơ đồ tổng quan kiến trúc
+Nguyên tắc chính: dự án ưu tiên stack **React + Node.js + MongoDB**, không thêm công nghệ mới nếu không có lý do rõ ràng.
 
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    FRONTEND (React Web App)                             │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐ │
-│  │Dashboard │  │Court     │  │Booking   │  │Payment   │  │Web QR    │ │
-│  │& Analytics│ │Explorer  │  │Calendar  │  │Gateway   │  │Check-in  │ │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘ │
-└───────┼─────────────┼─────────────┼─────────────┼─────────────┼───────┘
-        │             │             │             │             │
-        ▼             ▼             ▼             ▼             ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    BACKEND (Node.js + Express)                          │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │                    REST API Layer (Routing)                     │   │
-│  │  /api/auth  /api/courts  /api/bookings  /api/payments  /api/users│   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                              │                                          │
-│                              ▼                                          │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │                 Service Layer (Business Logic)                  │   │
-│  │  AuthService  CourtService  BookingService  PaymentService       │   │
-│  │  NotificationService  ScheduleService                           │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                              │                                          │
-│                              ▼                                          │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │              DataAccess Layer (Mongoose Models)                  │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┴─────────────────────┐
-        ▼                                           ▼
-┌─────────────────┐                       ┌─────────────────┐
-│    MongoDB      │                       │   Third-Party   │
-│  (Primary DB &  │                       │  (PayOS/Momo/   │
-│  Temporary Lock)│                       │   SendGrid API) │
-└─────────────────┘                       └─────────────────┘
+## 3. Kiến Trúc Tổng Quan
 
-2.2 Sơ đồ phân lớp kiến trúc (Layer Architecture Backend)
+```text
+React Frontend
+      |
+      | HTTP / JSON API
+      v
+Node.js Backend
+      |
+      | Mongoose
+      v
+MongoDB
+```
 
-┌─────────────────────────────────────────┐
-│            Routing Layer                │  express.Router()
-│   - Định nghĩa các đầu cuối (Endpoints) │  - Áp dụng Middleware xác thực
-│   - Kiểm tra định dạng dữ liệu đầu vào  │  - Điều phối luồng xử lý chính
-└─────────────────┬─────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────┐
-│           Controller Layer              │  controllers/
-│   - Trích xuất dữ liệu từ Request       │  - Gọi dịch vụ nghiệp vụ tương ứng
-│   - Trả về mã trạng thái HTTP chuẩn    │  - Bọc bắt lỗi tập trung (Error Handler)
-└─────────────────┬─────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────┐
-│           Service Layer                  │  services/
-│   - Logic xử lý nghiệp vụ chính         │  - Xác thực quy tắc đặt khung giờ
-│   - Tạo mã QR & Kiểm tra lượt check-in   │  - Khởi tạo cổng thanh toán
-│   - Quản lý giao dịch ghi (Transactions)│  
-└─────────────────┬─────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────┐
-│           Mongoose Models               │  models/
-│   - Định nghĩa Schema dữ liệu MongoDB   │  - Cấu hình chỉ mục (Indexes)
-│   - Các hàm tiền xử lý (Hooks)          │  
-└─────────────────────────────────────────┘
+Backend nên chia theo các lớp:
 
-3. QUYẾT ĐỊNH KIẾN TRÚC QUAN TRỌNG (ADR)
+| Lớp | Thư mục gợi ý | Trách nhiệm |
+| --- | --- | --- |
+| Routes | `routes/` | Khai báo endpoint và middleware |
+| Controllers | `controllers/` | Nhận request, gọi service, trả response |
+| Services | `services/` | Xử lý business logic |
+| Models | `models/` | Định nghĩa Mongoose schema |
+| Middlewares | `middlewares/` | Auth, validate, error handler |
+| Config | `config/` | Kết nối database, env config |
 
-ADR-001: Sử dụng bộ ba React, Node.js và MongoDB làm nền tảng cốt lõi
+## 4. Phạm Vi Quản Lý Sân Hà Nội
 
-  - Quyết định: Toàn bộ hệ thống chỉ sử dụng ba công nghệ chính: React cho giao
-    diện người dùng, Node.js cho logic máy chủ và MongoDB làm cơ sở dữ liệu duy
-    nhất [ADR-001, ADR-002].
-  - Lý do: Giảm thiểu sự phức tạp khi triển khai, đồng bộ hóa định dạng dữ liệu
-    JSON xuyên suốt từ tầng lưu trữ (BSON) tới hiển thị (React state) [ADR-001,
-    ADR-002]. Sử dụng ngôn ngữ JavaScript nhất quán trên cả Frontend và Backend
-    giúp đẩy nhanh tốc độ xây dựng tính năng.
-  - Trạng thái: ✅ Approved
+Hệ thống chỉ có một địa điểm vận hành:
 
-ADR-002: Thiết kế đa thiết bị dựa trên nền tảng Web duy nhất (Không dùng Mobile App)
+| Trường | Giá trị |
+| --- | --- |
+| Tên cơ sở | Pickleball Hà Nội |
+| Thành phố | Hà Nội |
+| Mô hình | Một cơ sở, nhiều sân con nếu cần |
+| Quản lý chi nhánh | Không |
+| Quản lý khu vực | Không |
+| Timezone | Asia/Ho_Chi_Minh |
+| Tiền tệ | VND |
 
-  - Quyết định: Không phát triển ứng dụng di động riêng biệt. Hệ thống sử dụng
-    thiết kế Responsive Web thích ứng linh hoạt.
-  - Lý do: Tiết kiệm chi phí bảo trì và phát triển. Giao diện quản lý dành cho
-    nhân viên tại sân (bao gồm tính năng quét mã QR check-in) sẽ được tích hợp
-    trực tiếp trên trang Web quản trị, chạy trực tiếp bằng trình duyệt trên
-    thiết bị di động hoặc máy tính bảng của nhân viên [ADR-003, ADR-004].
-  - Trạng thái: ✅ Approved
+Nếu cần lưu thông tin địa điểm, lưu trực tiếp trong cấu hình hệ thống hoặc collection `settings`. Không tạo collection `branches`, `clubs`, `regions` nếu chưa có nhu cầu thật sự.
 
-ADR-003: Cơ chế khóa đặt sân tạm thời bằng MongoDB TTL (Time-To-Live)
+## 5. API Chính
 
-  - Quyết định: Sử dụng một Collection phụ trong MongoDB có tên là temp_locks đi
-    kèm chỉ mục tự hủy TTL để khóa giữ chỗ tạm thời (10 phút) trong thời gian
-    chờ thanh toán [ADR-003].
-  - Lý do: Không cần cài đặt và vận hành thêm hệ thống Redis, duy trì kiến trúc
-    tối giản và tiết kiệm tài nguyên hạ tầng.
-  - Trạng thái: ✅ Approved
+| Nhóm API | Endpoint gợi ý | Mục đích |
+| --- | --- | --- |
+| Auth | `/api/auth` | Đăng ký, đăng nhập, lấy thông tin người dùng |
+| Users | `/api/users` | Quản lý tài khoản |
+| Courts | `/api/courts` | Quản lý sân con trong cơ sở Hà Nội |
+| Bookings | `/api/bookings` | Đặt sân, hủy sân, xem lịch sử |
+| Payments | `/api/payments` | Tạo và cập nhật thanh toán |
+| Products | `/api/products` | Quản lý sản phẩm/dụng cụ thuê kèm |
+| Promotions | `/api/promotions` | Quản lý mã giảm giá |
+| Reports | `/api/reports` | Báo cáo doanh thu cơ bản |
 
-ADR-004: Giao dịch nguyên tử qua Mongoose Session Transactions
+Format response nên thống nhất:
 
-  - Quyết định: Toàn bộ tiến trình chuyển đổi trạng thái từ giữ chỗ tạm thời
-    sang xác nhận thanh toán thành công phải chạy trong một Mongoose Session
-    Transaction [ADR-004].
-  - Lý do: Đảm bảo tính nhất quán của dữ liệu. Tránh trường hợp tiền của người
-    dùng đã bị trừ nhưng giao dịch đặt sân không được chuyển sang trạng thái
-    "CONFIRMED".
-  - Trạng thái: ✅ Approved
-
-4. NHỮNG GÌ ĐÃ KHÔNG HOẠT ĐỘNG (Lessons Learned)
-
-LESSON-001: Tránh lưu trạng thái rảnh/bận theo từng phút đơn lẻ
-
-  - Biến cố: Thiết kế ban đầu lưu trạng thái sân theo dạng một mảng chứa 1440
-    phần tử tương ứng với 1440 phút trong ngày để phục vụ việc đặt giờ tự do
-    khiến hệ thống truy vấn chậm nghiêm trọng khi lượng sân tăng.
-  - Khắc phục: Quy chuẩn hóa khung giờ đặt sân theo các mốc thời gian cố định
-    (60 phút, 90 phút hoặc 120 phút bắt đầu từ các giờ chẵn hoặc nửa giờ, ví
-    dụ: 08:00, 09:30).
-
-LESSON-002: Tuyệt đối không sử dụng múi giờ của máy trạm phía Client
-
-  - Biến cố: Người dùng ở nước ngoài đặt sân bị lệch giờ hiển thị trên máy tính
-    quản lý tại sân (Việt Nam - UTC+7).
-  - Khắc phục: Toàn bộ lịch trình và thời gian đặt sân được lưu dưới dạng chuỗi
-    chuẩn ISO UTC (YYYY-MM-DDTHH:mm:ss.sssZ) trong cơ sở dữ liệu và chỉ ép về
-    múi giờ Asia/Ho_Chi_Minh khi tính toán doanh thu hoặc hiển thị giờ thực tế
-    trên giao diện web tại sân.
-
-LESSON-003: Giải phóng các giao dịch thanh toán quá hạn bằng Background Job tuần tự
-
-  - Biến cố: Người dùng chọn sân xong, đi tới cổng thanh toán rồi tắt trình
-    duyệt khiến sân đó bị khóa ở trạng thái pending mà không được giải phóng
-    kịp thời.
-  - Khắc phục: Xây dựng một tác vụ nền chạy tuần tự trong Node.js (sử dụng thư
-    viện node-cron đơn giản) để quét định kỳ mỗi phút và tự động giải phóng các
-    yêu cầu đặt sân ở trạng thái pending quá thời gian quy định trong cơ sở dữ
-    liệu.
-
-5. FILE STRUCTURE (Cấu trúc thư mục chi tiết)
-
-5.1 Cấu trúc thư mục Backend (Node.js + Express)
-
-backend/
-├── src/
-│   ├── config/             # Cấu hình DB & Biến môi trường
-│   │   └── db.js
-│   ├── controllers/        # Express controllers (Xử lý HTTP requests)
-│   │   ├── court.controller.js
-│   │   └── booking.controller.js
-│   ├── services/           # Lớp logic nghiệp vụ cốt lõi
-│   │   ├── court.service.js
-│   │   ├── booking.service.js
-│   │   └── payment.service.js
-│   ├── models/             # Định nghĩa schemas & models Mongoose
-│   │   ├── Court.js
-│   │   ├── Booking.js
-│   │   ├── User.js
-│   │   └── TempLock.js     # Chứa khóa giữ chỗ tạm thời (TTL)
-│   ├── middlewares/        # Custom middlewares
-│   │   ├── auth.middleware.js
-│   │   └── error.middleware.js
-│   ├── routes/             # Định nghĩa các tuyến đường API
-│   │   ├── court.routes.js
-│   │   └── booking.routes.js
-│   ├── utils/              # Các hàm tiện ích (Tạo mã QR, xử lý ngày tháng)
-│   │   └── dateHelper.js
-│   └── app.js              # Khởi tạo và thiết lập Express App
-├── tests/                  # Thư mục kiểm thử tự động
-└── package.json
-
-5.2 Cấu trúc thư mục Frontend (React Web App)
-
-frontend/
-├── src/
-│   ├── assets/            # Tài nguyên tĩnh (Hình ảnh, logo)
-│   ├── components/        # Các thành phần giao diện tái sử dụng
-│   │   ├── common/
-│   │   │   └── Button.jsx
-│   │   ├── court/
-│   │   │   ├── CourtCard.jsx
-│   │   │   └── CourtFilter.jsx
-│   │   └── booking/
-│   │       └── BookingCalendar.jsx
-│   ├── pages/             # Các trang nghiệp vụ chính
-│   │   ├── HomePage.jsx
-│   │   ├── CourtDetailPage.jsx
-│   │   ├── BookingSummaryPage.jsx
-│   │   └── StaffCheckInPage.jsx  # Trang Web dành cho nhân viên quét mã QR
-│   ├── hooks/             # Custom React Hooks
-│   │   ├── useAuth.js
-│   │   └── useBookings.js
-│   ├── services/          # Các cuộc gọi API (sử dụng Axios)
-│   │   └── api.js
-│   ├── context/           # Quản lý trạng thái toàn cục (Auth, Cart)
-│   ├── utils/             # Các hàm bổ trợ xử lý hiển thị giao diện
-│   └── index.css
-├── index.html
-├── tailwind.config.js
-└── vite.config.js
-
-6. DEVELOPMENT WORKFLOW (Quy trình phát triển)
-
-Dự án tuân thủ nghiêm ngặt quy trình phát triển dựa trên tài liệu đặc tả
-(Spec-Driven Development):
-
-┌─────────────────────────────────────────────────────────────────────┐
-│                                                                     │
-│   /spec  →  /plan  →  /build  →  /test  →  /review  →  /deploy     │
-│   Define    Plan     Build     Verify    Review     Deploy         │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-
-7. RULES & GUIDELINES (Quy tắc & Hướng dẫn)
-
-7.1 Luôn luôn làm (ALWAYS DO)
-
-  - Sử dụng Mongoose Transaction: Cho tất cả các tác vụ ghi đồng thời liên quan
-    đến tài chính và thay đổi trạng thái chỗ đặt [ADR-004].
-  - Kiểm tra trùng lịch (Overlap Check): Luôn viết logic kiểm tra chồng chéo giờ
-    bắt đầu và kết thúc của Booking mới so với các Booking khác trong hệ thống
-    trước khi xác nhận.
-  - Sử dụng chuẩn UTC cho thời gian: Mọi dữ liệu về ngày tháng gửi lên từ Client
-    hoặc lưu trữ dưới Database bắt buộc phải tuân theo định dạng ISO 8601 UTC.
-  - Xử lý lỗi tập trung: Luôn bao bọc các hàm controller bằng khối try-catch và
-    đẩy lỗi xuống hàm next(error) để middleware xử lý tập trung.
-  - Đánh giá dữ liệu đầu vào: Sử dụng kiểm tra tính hợp lệ của dữ liệu đầu vào
-    (Body, Params, Query) tại tầng Router trước khi thực thi logic nghiệp vụ.
-
-7.2 Không được làm (NEVER DO)
-
-  - Không sử dụng Raw Queries không index: Cấm viết các câu lệnh truy vấn tìm
-    kiếm lịch trống của sân bóng mà không đánh chỉ mục (Index) cho các trường
-    courtId và date.
-  - Không lưu mật khẩu dạng văn bản thô: Bắt buộc phải mã hóa mật khẩu người
-    dùng thông qua thư viện bcrypt trước khi lưu vào MongoDB.
-  - Không tin tưởng thông tin giá từ Client: Luôn tính toán lại tổng số tiền
-    thanh toán tại Backend dựa trên cấu hình giá sân lấy từ Database, không sử
-    dụng giá trị tiền gửi lên từ phía Client.
-  - Không trả về dữ liệu nhạy cảm: Tuyệt đối không đưa các trường chứa thông tin
-    bảo mật như password hay refreshToken vào dữ liệu JSON phản hồi về Client.
-
-7.3 Tiêu chuẩn chất lượng Code
-
-  - Độ dài tối đa của một hàm Controller: 35 dòng.
-  - Độ dài tối đa của một hàm Service: 60 dòng.
-  - Tỷ lệ phủ của Unit Test cho các Services chính: Tối thiểu 80%.
-
-8. NAMING CONVENTIONS (Quy ước đặt tên)
-
-8.1 Backend (Node.js/JavaScript)
-
-  - Thư mục / Tập tin: Định dạng camelCase hoặc kebab-case (ví dụ:
-    court.controller.js, booking-helper.js).
-  - Tên Lớp (Class): Định dạng PascalCase (ví dụ: BookingService,
-    PaymentService).
-  - Tên Hàm (Function): Định dạng camelCase (ví dụ: getAvailableSlots(),
-    calculatePrice()).
-  - Mô hình Dữ liệu (MongoDB): Viết thường hoàn toàn và ở dạng số nhiều (ví dụ:
-    courts, bookings, users).
-  - Biến hằng số (Constants): Viết hoa hoàn toàn phân tách bằng dấu gạch dưới
-    (ví dụ: MAX_BOOKING_DAYS_AHEAD, DEFAULT_SLOT_DURATION).
-
-8.2 Frontend (React/JavaScript)
-
-  - Thành phần giao diện (Components): Định dạng PascalCase (ví dụ:
-    CourtCalendar.jsx, BookingForm.jsx).
-  - Móc tùy chỉnh (Custom Hooks): Định dạng camelCase bắt đầu bằng tiền tố use
-    (ví dụ: useBookingCart.js).
-  - Kiểu dữ liệu: Sử dụng định dạng CamelCase chuẩn để quản lý các Object State
-    của React.
-
-9. SƠ ĐỒ QUY TRÌNH NGHIỆP VỤ (Swimlane Diagrams)
-
-9.1 Quy trình Đặt Sân và Thanh Toán (Booking & Payment)
-
-┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│ BOOKING & PAYMENT PROCESS SWIMLANES                                                         │
-├───────────────┬───────────────┬───────────────┬───────────────────────────────┬─────────────┤
-│    PLAYER     │  WEB FRONTEND │  WEB BACKEND  │            MONGODB            │ PAYMENT GW  │
-├───────────────┼───────────────┼───────────────┼───────────────────────────────┼─────────────┤
-│               │               │               │                               │             │
-│ Chọn sân & giờ│               │               │                               │             │
-│ ─────────────►│               │               │                               │             │
-│               │ Gửi req đặt   │               │                               │             │
-│               │ ─────────────►│ Check trùng   │                               │             │
-│               │               │ ─────────────►│                               │             │
-│               │               │               │ Ghi khóa tạm vào TempLock     │             │
-│               │               │               │ (Tự hủy sau 10 phút)          │             │
-│               │               │               │ ─────────────────────────────►│             │
-│               │               │               │                               │             │
-│               │               │               │ Tạo booking với trạng thái    │             │
-│               │               │               │ "PENDING"                     │             │
-│               │               │               │ ─────────────────────────────►│             │
-│               │               │ Tạo link pay  │                               │             │
-│               │               │ ─────────────────────────────────────────────►│             │
-│               │ Trả link pay  │               │                               │             │
-│               │◄──────────────│               │                               │             │
-│               │               │               │                               │             │
-│ Thực hiện     │               │               │                               │             │
-│ thanh toán    │               │               │                               │             │
-│ ─────────────────────────────────────────────────────────────────────────────►│             │
-│               │               │               │                               │ Xử lý gd    │
-│               │               │               │                               │ và trả về   │
-│               │               │               │                               │ webhook     │
-│               │               │ Webhook nhận  │                               │ ◄───────────│
-│               │               │ ◄─────────────────────────────────────────────│             │
-│               │               │               │                               │             │
-│               │               │ Cập nhật trạng│                               │             │
-│               │               │ thái "CONFIRMED"                              │             │
-│               │               │ ─────────────────────────────►│               │             │
-│               │               │               │                               │             │
-│               │               │ Xóa khóa tạm  │                               │             │
-│               │               │ trong TempLock│                               │             │
-│               │               │ ─────────────►│                               │             │
-│               │               │               │                               │             │
-└───────────────┴───────────────┴───────────────┴───────────────────────────────┴─────────────┘
-
-9.2 Quy trình Check-in bằng mã QR tại sân (Trình duyệt Web của Nhân viên)
-
-┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│ QR CODE CHECK-IN SWIMLANES (WEB ONLY)                                                       │
-├───────────────┬───────────────┬──────────────────────┬────────────────┬─────────────────────┤
-│    PLAYER     │ STAFF (WEB)   │   WEB FRONTEND       │  WEB BACKEND   │       MONGODB       │
-├───────────────┼───────────────┼──────────────────────┼────────────────┼─────────────────────┤
-│               │               │                      │                │                     │
-│ Mở vé đã đặt  │               │                      │                │                     │
-│ ─────────────►│               │                      │                │                     │
-│               │ Hiển thị QR   │                      │                │                     │
-│               │ trên Web      │                      │                │                     │
-│               │ ─────────────►│                      │                │                     │
-│               │               │                      │                │                     │
-│               │ Quét mã QR    │                      │                │                     │
-│               │ bằng Camera   │                      │                │                     │
-│               │ trình duyệt   │                      │                │                     │
-│               │ ─────────────►│ Gửi dữ liệu          │                │                     │
-│               │               │ giải mã QR           │                │                     │
-│               │               │ ─────────────►───────│ Xác thực       │                     │
-│               │               │                      │ token QR &     │                     │
-│               │               │                      │ trạng thái vé  │                     │
-│               │               │                      │ ──────────────►│                     │
-│               │               │                      │                │ Lấy thông tin đặt   │
-│               │               │                      │                │ sân và cập nhật sang│
-│               │               │                      │                │ "CHECKED_IN"        │
-│               │               │                      │                │ ◄───────────────────│
-│               │               │                      │                │                     │
-│               │               │ Trả kết quả          │                │                     │
-│               │               │ thành công           │                │                     │
-│               │               │ ◄────────────────────│                │                     │
-│               │ Hiển thị thông│                      │                │                     │
-│               │ báo check-in  │                      │                │                     │
-│               │ ◄─────────────│                      │                │                     │
-│               │               │                      │                │                     │
-└───────────────┴───────────────┴──────────────────────┴────────────────┴─────────────────────┘
-
-10. ANTI-PATTERNS CẦN TRÁNH (Tránh xa dứt khoát)
-
-10.1 Database Anti-Patterns (MongoDB)
-
-  - Thiết kế mảng lồng vô hạn (Unbounded Arrays): Không lưu trực tiếp hàng nghìn
-    lịch đặt sân vào bên trong một tài liệu sân bóng (court.bookings). Tài liệu
-    sẽ nhanh chóng vượt giới hạn dung lượng 16MB của MongoDB và gây sụt giảm
-    hiệu năng. Lịch đặt sân được tách thành một Collection riêng biệt mang tên
-    bookings và liên kết thông qua trường courtId.
-  - Không đánh chỉ mục (Indexes) cho các trường tìm kiếm chính: Làm chậm nghiêm
-    trọng các truy vấn lọc giờ trống của sân theo ngày khi lượng dữ liệu lớn
-    dần. Bắt buộc tạo Compound Index trên hai trường { courtId: 1, date: 1 }.
-
-10.2 Node.js Anti-Patterns
-
-  - Làm tắc nghẽn luồng xử lý chính (Blocking Event Loop): Sử dụng các vòng lặp
-    đồng bộ quá sâu để kiểm tra giờ hoặc phân tích tệp dữ liệu dung lượng lớn
-    khiến toàn bộ các yêu cầu HTTP khác của người dùng bị dừng phản hồi. Tận
-    dụng tối đa sức mạnh xử lý bất đồng bộ của Node.js.
-  - Lưu trữ dữ liệu trạng thái tạm thời trong bộ nhớ ứng dụng (Stateful
-    Service): Lưu danh sách các khung giờ bị khóa trực tiếp vào biến cục bộ
-    (RAM) của ứng dụng Express. Khi triển khai lên môi trường chạy song song
-    nhiều máy chủ, dữ liệu giữ chỗ sẽ bị sai lệch. Do đó, toàn bộ khóa tạm
-    được chuyển hóa qua Collection temp_locks của MongoDB [ADR-003].
-
-10.3 React Anti-Patterns
-
-  - Re-render dư thừa trên bảng đặt sân: Người dùng bấm chọn một ô giờ cụ thể
-    khiến toàn bộ bảng lịch trình chứa 15-20 sân bóng phải render lại toàn bộ,
-    gây hiện tượng đơ lag trên trình duyệt điện thoại. Chia nhỏ các ô chọn giờ
-    thành các component độc lập và sử dụng React.memo để tránh re-render không
-    đáng có.
-
-11. CORE ENTITIES (Mô hình Dữ liệu Chính)
-
-11.1 Court Schema (Thông tin Sân bóng)
-
+```json
 {
-  _id: ObjectId,
-  name: String,         // Ví dụ: "Sân 01 - Trong Nhà"
-  clubId: ObjectId,     // Tham chiếu tới Cụm Sân (Hà Nội, HCM...)
-  type: String,         // "indoor" | "outdoor"
-  basePrice: Number,    // Giá gốc thuê sân/giờ (ví dụ: 150000 VNĐ)
-  status: String,       // "active" | "maintenance" | "inactive"
-  pricingRules: [{      // Cấu hình khung giờ vàng (Peak Hours)
-    dayOfWeek: [Number], // 0: Chủ nhật, 1-6: Thứ 2-7
-    startHour: String,   // Ví dụ: "17:00"
-    endHour: String,     // Ví dụ: "21:00"
-    surcharge: Number    // Phụ thu (ví dụ: +50000 VNĐ/giờ)
-  }]
+  "success": true,
+  "message": "OK",
+  "data": {}
 }
+```
 
-11.2 Booking Schema (Thông tin Đặt Sân)
+Khi lỗi:
 
+```json
 {
-  _id: ObjectId,
-  bookingNumber: String, // Mã đặt sân duy nhất (e.g. PKB-102948)
-  userId: ObjectId,      // Người đặt sân
-  courtId: ObjectId,     // Sân bóng được đặt
-  date: String,          // Ngày đặt (YYYY-MM-DD)
-  startTime: String,     // Giờ bắt đầu (e.g. "08:00")
-  endTime: String,       // Giờ kết thúc (e.g. "09:30")
-  totalPrice: Number,    // Tổng số tiền thực tế (đã tính phụ thu)
-  paymentStatus: String, // "pending" | "paid" | "refunded" | "failed"
-  bookingStatus: String, // "pending" | "confirmed" | "checked_in" | "cancelled"
-  qrToken: String,       // Token để giải mã và hiển thị QR kiểm tra lúc check-in
-  createdAt: Date
+  "success": false,
+  "message": "Error message"
 }
+```
 
-11.3 TempLock Schema (Thông tin Khóa Giữ Chỗ Tạm Thời)
+## 6. Collections MongoDB
 
-{
-  _id: ObjectId,
-  courtId: ObjectId,     // Sân bóng bị khóa
-  date: String,          // Ngày đặt (YYYY-MM-DD)
-  startTime: String,     // Giờ bắt đầu
-  endTime: String,       // Giờ kết thúc
-  userId: ObjectId,      // Người dùng giữ chỗ
-  createdAt: Date        // Được đánh chỉ mục TTL để tự động xóa sau 10 phút (600 giây)
-}
+Danh sách collection chính:
+
+| Collection | Vai trò | Ghi chú |
+| --- | --- | --- |
+| `users` | Lưu tài khoản khách hàng, staff, admin | Không lưu mật khẩu plain text |
+| `courts` | Lưu thông tin các sân con trong cơ sở Hà Nội | Không cần `branchId` hoặc `clubId` |
+| `bookings` | Lưu đơn đặt sân | Liên kết `userId`, `courtId` |
+| `payments` | Lưu giao dịch thanh toán | Liên kết `bookingId` |
+| `refunds` | Lưu yêu cầu hoàn tiền | Nếu có tính năng hủy và hoàn tiền |
+| `products` | Lưu sản phẩm/dụng cụ thuê kèm | Ví dụ vợt, bóng, nước uống |
+| `categories` | Lưu danh mục sản phẩm | Ví dụ dụng cụ, đồ uống |
+| `promotions` | Lưu mã giảm giá | Áp dụng cho booking |
+| `temp_locks` | Giữ slot tạm thời | Dùng TTL index để tự hết hạn |
+| `settings` | Cấu hình cơ sở Hà Nội | Tên sân, địa chỉ, giờ mở cửa |
+
+Không dùng trong phạm vi hiện tại:
+
+| Collection | Lý do bỏ |
+| --- | --- |
+| `branches` | Không quản lý nhiều chi nhánh |
+| `clubs` | Không quản lý nhiều cụm sân |
+| `regions` | Không quản lý nhiều khu vực |
+
+## 7. Schema Gợi Ý
+
+### 7.1 `settings`
+
+Lưu cấu hình chung cho một cơ sở tại Hà Nội.
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| --- | --- | --- | --- |
+| `_id` | ObjectId | Có | Khóa chính |
+| `venueName` | String | Có | Ví dụ `Pickleball Hà Nội` |
+| `city` | String | Có | Luôn là `Hà Nội` |
+| `address` | String | Có | Địa chỉ sân |
+| `phone` | String | Không | Số điện thoại liên hệ |
+| `email` | String | Không | Email liên hệ |
+| `openTime` | String | Có | Ví dụ `06:00` |
+| `closeTime` | String | Có | Ví dụ `22:00` |
+| `timezone` | String | Có | `Asia/Ho_Chi_Minh` |
+| `createdAt` | Date | Có | Tự sinh |
+| `updatedAt` | Date | Có | Tự sinh |
+
+```js
+const settingSchema = new Schema({
+  venueName: { type: String, required: true, trim: true },
+  city: { type: String, default: 'Hà Nội', trim: true },
+  address: { type: String, required: true, trim: true },
+  phone: { type: String, trim: true },
+  email: { type: String, trim: true, lowercase: true },
+  openTime: { type: String, required: true },
+  closeTime: { type: String, required: true },
+  timezone: { type: String, default: 'Asia/Ho_Chi_Minh' }
+}, { timestamps: true });
+```
+
+### 7.2 `users`
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| --- | --- | --- | --- |
+| `_id` | ObjectId | Có | Khóa chính |
+| `fullName` | String | Có | Họ tên |
+| `email` | String | Có | Unique |
+| `phone` | String | Có | Số điện thoại |
+| `passwordHash` | String | Có | Mật khẩu đã hash |
+| `role` | String | Có | `customer`, `staff`, `admin` |
+| `status` | String | Có | `active`, `inactive`, `blocked` |
+| `createdAt` | Date | Có | Tự sinh |
+| `updatedAt` | Date | Có | Tự sinh |
+
+```js
+const userSchema = new Schema({
+  fullName: { type: String, required: true, trim: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  phone: { type: String, required: true, trim: true },
+  passwordHash: { type: String, required: true },
+  role: { type: String, enum: ['customer', 'staff', 'admin'], default: 'customer' },
+  status: { type: String, enum: ['active', 'inactive', 'blocked'], default: 'active' }
+}, { timestamps: true });
+```
+
+### 7.3 `courts`
+
+Collection này lưu các sân con trong cùng một cơ sở Hà Nội. Ví dụ: Sân A1, Sân A2, Sân VIP.
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| --- | --- | --- | --- |
+| `_id` | ObjectId | Có | Khóa chính |
+| `name` | String | Có | Ví dụ `Sân A1` |
+| `code` | String | Có | Unique, ví dụ `A1` |
+| `type` | String | Có | `indoor`, `outdoor` |
+| `surfaceType` | String | Không | Loại mặt sân |
+| `basePricePerHour` | Number | Có | Giá theo giờ, VND |
+| `facilities` | Array String | Không | Đèn, mái che, bãi xe |
+| `status` | String | Có | `available`, `maintenance`, `inactive` |
+| `createdAt` | Date | Có | Tự sinh |
+| `updatedAt` | Date | Có | Tự sinh |
+
+Không thêm `branchId`, `clubId`, `regionId` trong schema này.
+
+```js
+const courtSchema = new Schema({
+  name: { type: String, required: true, trim: true },
+  code: { type: String, required: true, unique: true, uppercase: true, trim: true },
+  type: { type: String, enum: ['indoor', 'outdoor'], required: true },
+  surfaceType: { type: String, trim: true },
+  basePricePerHour: { type: Number, required: true, min: 0 },
+  facilities: [{ type: String, trim: true }],
+  status: { type: String, enum: ['available', 'maintenance', 'inactive'], default: 'available' }
+}, { timestamps: true });
+```
+
+### 7.4 `bookings`
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| --- | --- | --- | --- |
+| `_id` | ObjectId | Có | Khóa chính |
+| `bookingCode` | String | Có | Unique, ví dụ `BK-20260530-0001` |
+| `userId` | ObjectId | Có | Tham chiếu `users._id` |
+| `staffId` | ObjectId | Không | Staff xử lý/check-in |
+| `courtId` | ObjectId | Có | Tham chiếu `courts._id` |
+| `bookingDate` | Date | Có | Ngày chơi |
+| `startTime` | String | Có | Format `HH:mm` |
+| `endTime` | String | Có | Format `HH:mm` |
+| `courtPrice` | Number | Có | Giá sân tại thời điểm đặt |
+| `productItems` | Array Object | Không | Dụng cụ/sản phẩm kèm |
+| `promotionId` | ObjectId | Không | Tham chiếu `promotions._id` |
+| `discountAmount` | Number | Có | Mặc định 0 |
+| `totalAmount` | Number | Có | Tổng tiền cuối cùng |
+| `paymentStatus` | String | Có | `unpaid`, `pending`, `paid`, `refunded`, `failed` |
+| `bookingStatus` | String | Có | `pending`, `confirmed`, `checked_in`, `completed`, `cancelled`, `expired`, `no_show` |
+| `expiresAt` | Date | Không | Hết hạn giữ chỗ |
+| `createdAt` | Date | Có | Tự sinh |
+| `updatedAt` | Date | Có | Tự sinh |
+
+```js
+const productItemSchema = new Schema({
+  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+  quantity: { type: Number, required: true, min: 1 },
+  price: { type: Number, required: true, min: 0 }
+}, { _id: false });
+
+const bookingSchema = new Schema({
+  bookingCode: { type: String, required: true, unique: true, trim: true },
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  staffId: { type: Schema.Types.ObjectId, ref: 'User' },
+  courtId: { type: Schema.Types.ObjectId, ref: 'Court', required: true, index: true },
+  bookingDate: { type: Date, required: true, index: true },
+  startTime: { type: String, required: true },
+  endTime: { type: String, required: true },
+  courtPrice: { type: Number, required: true, min: 0 },
+  productItems: { type: [productItemSchema], default: [] },
+  promotionId: { type: Schema.Types.ObjectId, ref: 'Promotion' },
+  discountAmount: { type: Number, default: 0, min: 0 },
+  totalAmount: { type: Number, required: true, min: 0 },
+  paymentStatus: {
+    type: String,
+    enum: ['unpaid', 'pending', 'paid', 'refunded', 'failed'],
+    default: 'unpaid'
+  },
+  bookingStatus: {
+    type: String,
+    enum: ['pending', 'confirmed', 'checked_in', 'completed', 'cancelled', 'expired', 'no_show'],
+    default: 'pending'
+  },
+  expiresAt: { type: Date }
+}, { timestamps: true });
+```
+
+### 7.5 `temp_locks`
+
+Dùng để giữ slot tạm thời trong lúc khách thanh toán. Collection này có TTL index để tự xóa.
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| --- | --- | --- | --- |
+| `_id` | ObjectId | Có | Khóa chính |
+| `userId` | ObjectId | Có | Người giữ chỗ |
+| `courtId` | ObjectId | Có | Sân được giữ |
+| `bookingDate` | Date | Có | Ngày chơi |
+| `startTime` | String | Có | Giờ bắt đầu |
+| `endTime` | String | Có | Giờ kết thúc |
+| `expiresAt` | Date | Có | Thời điểm hết hạn |
+| `createdAt` | Date | Có | Tự sinh |
+
+```js
+const tempLockSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  courtId: { type: Schema.Types.ObjectId, ref: 'Court', required: true, index: true },
+  bookingDate: { type: Date, required: true, index: true },
+  startTime: { type: String, required: true },
+  endTime: { type: String, required: true },
+  expiresAt: { type: Date, required: true, index: true }
+}, { timestamps: true });
+
+tempLockSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+tempLockSchema.index({ courtId: 1, bookingDate: 1, startTime: 1, endTime: 1 }, { unique: true });
+```
+
+### 7.6 `payments`
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| --- | --- | --- | --- |
+| `_id` | ObjectId | Có | Khóa chính |
+| `bookingId` | ObjectId | Có | Tham chiếu `bookings._id` |
+| `userId` | ObjectId | Có | Người thanh toán |
+| `amount` | Number | Có | Số tiền VND |
+| `paymentMethod` | String | Có | `cash`, `bank_transfer`, `momo`, `vnpay`, `zalopay`, `card` |
+| `transactionId` | String | Không | Mã giao dịch cổng thanh toán |
+| `status` | String | Có | `pending`, `success`, `failed`, `cancelled`, `refunded` |
+| `paidAt` | Date | Không | Thời điểm thanh toán thành công |
+| `createdAt` | Date | Có | Tự sinh |
+| `updatedAt` | Date | Có | Tự sinh |
+
+### 7.7 `products`
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| --- | --- | --- | --- |
+| `_id` | ObjectId | Có | Khóa chính |
+| `categoryId` | ObjectId | Có | Tham chiếu `categories._id` |
+| `name` | String | Có | Tên sản phẩm |
+| `price` | Number | Có | Giá thuê/bán |
+| `stockQuantity` | Number | Có | Tồn kho |
+| `status` | String | Có | `active`, `inactive`, `out_of_stock` |
+| `createdAt` | Date | Có | Tự sinh |
+| `updatedAt` | Date | Có | Tự sinh |
+
+### 7.8 `promotions`
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| --- | --- | --- | --- |
+| `_id` | ObjectId | Có | Khóa chính |
+| `code` | String | Có | Unique |
+| `description` | String | Không | Mô tả |
+| `discountType` | String | Có | `percentage`, `fixed_amount` |
+| `discountValue` | Number | Có | Giá trị giảm |
+| `maxDiscountAmount` | Number | Không | Mức giảm tối đa |
+| `startDate` | Date | Có | Ngày bắt đầu |
+| `endDate` | Date | Có | Ngày kết thúc |
+| `usageLimit` | Number | Không | Giới hạn lượt dùng |
+| `usedCount` | Number | Có | Mặc định 0 |
+| `isActive` | Boolean | Có | Mặc định true |
+
+## 8. Index Khuyến Nghị
+
+```js
+db.users.createIndex({ email: 1 }, { unique: true });
+db.users.createIndex({ phone: 1 });
+
+db.courts.createIndex({ code: 1 }, { unique: true });
+db.courts.createIndex({ status: 1 });
+
+db.bookings.createIndex({ bookingCode: 1 }, { unique: true });
+db.bookings.createIndex({ userId: 1, createdAt: -1 });
+db.bookings.createIndex({ courtId: 1, bookingDate: 1, bookingStatus: 1 });
+db.bookings.createIndex({ paymentStatus: 1, bookingStatus: 1 });
+
+db.temp_locks.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+db.temp_locks.createIndex(
+  { courtId: 1, bookingDate: 1, startTime: 1, endTime: 1 },
+  { unique: true }
+);
+
+db.payments.createIndex({ bookingId: 1, status: 1 });
+db.payments.createIndex({ transactionId: 1 }, { unique: true, sparse: true });
+
+db.products.createIndex({ categoryId: 1, status: 1 });
+db.promotions.createIndex({ code: 1 }, { unique: true });
+```
+
+## 9. Quy Tắc Nghiệp Vụ
+
+### Đặt sân
+
+- Không cho đặt sân nếu `court.status != available`.
+- Không cho đặt ngày trong quá khứ.
+- `startTime` phải nhỏ hơn `endTime`.
+- Không cho hai booking active trùng cùng `courtId`, `bookingDate`, `startTime`, `endTime`.
+- Trạng thái chiếm sân: `pending`, `confirmed`, `checked_in`.
+- Trạng thái không còn chiếm sân: `cancelled`, `expired`, `completed`, `no_show`.
+
+### Thanh toán
+
+- Booking mới tạo có `bookingStatus = pending` và `paymentStatus = unpaid`.
+- Khi thanh toán thành công, cập nhật `paymentStatus = paid` và `bookingStatus = confirmed`.
+- Khi thanh toán thất bại hoặc hết hạn giữ chỗ, cập nhật `bookingStatus = expired` hoặc `cancelled`.
+- Không tin giá gửi từ frontend. Backend phải tự tính lại giá.
+
+### Giữ chỗ tạm thời
+
+- Khi khách chọn sân và chuẩn bị thanh toán, tạo document trong `temp_locks`.
+- Thời gian giữ chỗ mặc định: 10 phút.
+- Nếu hết hạn mà chưa thanh toán, TTL index tự xóa lock.
+- Booking lịch sử không được xóa bằng TTL. Chỉ `temp_locks` được dùng TTL.
+
+### Hủy và hoàn tiền
+
+- Chỉ hoàn tiền cho booking đã thanh toán.
+- Tổng tiền hoàn không được vượt quá số tiền đã thanh toán.
+- Khi hoàn tiền toàn bộ, cập nhật `paymentStatus = refunded`.
+- Chính sách hủy nên xử lý ở service, không viết trực tiếp trong controller.
+
+## 10. Quy Ước Frontend React
+
+- Component dùng lại đặt trong `src/components`.
+- Page đặt trong `src/pages` nếu project có thư mục này.
+- API client đặt trong `src/services` hoặc `src/api`.
+- Component không chứa business logic đặt sân phức tạp.
+- Form cần có loading, error và validate cơ bản.
+- Bảng lịch sân cần tránh re-render toàn bộ khi chỉ một ô thay đổi.
+
+## 11. Quy Ước Backend Node.js
+
+- Route chỉ khai báo endpoint và middleware.
+- Controller chỉ đọc request, gọi service và trả response.
+- Service xử lý logic chính: kiểm tra trùng lịch, tính tiền, giữ chỗ, cập nhật thanh toán.
+- Model chỉ định nghĩa schema, index, hook cần thiết.
+- Middleware dùng cho auth, validate request và error handling.
+- Không hard-code secret, API key, JWT secret trong code.
+
+## 12. Anti-Patterns Cần Tránh
+
+| Anti-pattern | Lý do |
+| --- | --- |
+| Thêm `branchId`, `clubId`, `regionId` vào mọi bảng | Dự án hiện chỉ quản lý một cơ sở ở Hà Nội |
+| Lưu booking trực tiếp trong document `courts` | Dễ vượt giới hạn document và khó query |
+| Dùng TTL để xóa booking thật | Mất lịch sử giao dịch |
+| Tính tiền ở frontend | Dễ bị chỉnh sửa dữ liệu |
+| Lưu password plain text | Rủi ro bảo mật nghiêm trọng |
+| Viết logic booking trong React component | Khó test và khó bảo trì |
+| Viết toàn bộ logic trong Express route | Code khó mở rộng |
+
+## 13. Checklist Trước Khi Push Git
+
+- `CLAUDE.md` không còn mô tả mô hình nhiều khu vực hoặc nhiều chi nhánh.
+- Schema `courts` không còn `branchId`, `clubId`, `regionId`.
+- Các bảng/collection chính đã thống nhất theo mô hình một cơ sở Hà Nội.
+- Có collection `settings` nếu cần lưu thông tin địa điểm.
+- Booking dùng `courtId`, `bookingDate`, `startTime`, `endTime` để kiểm tra trùng lịch.
+- `temp_locks` dùng TTL, còn `bookings` giữ lịch sử.
+- Không có secret/API key trong tài liệu.
+- Các ví dụ code dùng JavaScript/Mongoose, phù hợp Node.js backend.
