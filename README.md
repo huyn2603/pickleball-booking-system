@@ -10,14 +10,14 @@
 
 ## Mục Tiêu Dự Án
 
-Xây dựng hệ thống đặt sân pickleball trực tuyến phục vụ chuỗi cơ sở thể thao với nhiều địa điểm (chi nhánh). Hệ thống cho phép khách hàng tự đặt sân – hủy sân – thanh toán online qua web/app; hỗ trợ Staff quản lý lịch sân, sản phẩm và booking; Owner theo dõi doanh thu, quản lý khuyến mãi và cấu hình sân; Admin quản trị hệ thống và phân quyền. Hệ thống tích hợp Payment Gateway để xử lý thanh toán và Mail Service để gửi thông báo xác nhận. Đặt sân được xác nhận tự động sau khi thanh toán thành công, không cần duyệt thủ công.
+Xây dựng hệ thống đặt sân pickleball trực tuyến phục vụ thể thao . Hệ thống cho phép khách hàng tự đặt sân – hủy sân – thanh toán online qua web; hỗ trợ Staff quản lý lịch sân, sản phẩm và booking; Owner theo dõi doanh thu, quản lý khuyến mãi và cấu hình sân; Admin quản trị hệ thống và phân quyền. Hệ thống tích hợp Payment Gateway để xử lý thanh toán và Mail Service để gửi thông báo xác nhận. Đặt sân được xác nhận tự động sau khi thanh toán thành công, không cần duyệt thủ công.
 
 ### Quy trình đặt sân
 
 ```
 Guest đăng ký tài khoản → Customer
          ↓
-Customer chọn sân & khung giờ trên web/app
+Customer chọn sân & khung giờ trên web
          ↓
 Hệ thống kiểm tra lịch trống
          ↓
@@ -34,7 +34,7 @@ Staff theo dõi & quản lý booking
 
 | Có                                          | Không                                                              |
 | ------------------------------------------- | ------------------------------------------------------------------ |
-| Đặt sân online (web/app) tự phục vụ         | Module Quản lý Giải đấu chuyên nghiệp                              |
+| Đặt sân online (web) tự phục vụ             | Module Quản lý Giải đấu chuyên nghiệp                              |
 | Hủy sân & hoàn tiền theo chính sách         | Module CRM chuyên sâu                                              |
 | Thanh toán online qua Payment Gateway       | Tích hợp ERP                                                       |
 | Quản lý gói thành viên (Membership)         | Hệ thống tính điểm ranking thi đấu chuyên nghiệp                   |
@@ -521,7 +521,7 @@ Staff theo dõi & quản lý booking
 
 | Vai trò (Role)              | Phạm vi & Quyền hạn trên hệ thống                                                                                                                                      |
 | :-------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Admin**                   | Toàn quyền cấu hình hệ thống, quản lý tài khoản người dùng (bao gồm xử lý yêu cầu cập nhật từ Customer), phân quyền, xem system report, sao lưu và khôi phục dữ liệu. |
+| **Admin**                   | Toàn quyền cấu hình hệ thống, quản lý tài khoản người dùng (bao gồm xử lý yêu cầu cập nhật từ Customer), phân quyền, xem system report. |
 | **Owner**                   | Xem revenue report toàn bộ chi nhánh mình quản lý, cấu hình sân và bảng giá, tạo và quản lý khuyến mãi/voucher, xem và xử lý feedback từ Customer.                    |
 | **Staff**                   | Quản lý booking tại chi nhánh được gán, check-in/check-out Customer, quản lý sản phẩm và dịch vụ kèm, xem lịch sân, hỗ trợ Customer khi có vấn đề tại chỗ.            |
 | **Customer**                | Tự đặt sân online, hủy sân, đổi lịch, mua gói thành viên, nhập voucher, thêm dịch vụ kèm, gửi feedback, xem lịch sử đặt sân của bản thân.                             |
