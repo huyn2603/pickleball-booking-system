@@ -1,121 +1,221 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
 import './App.css'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [mode, setMode] = useState('login')
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+  const [messageType, setMessageType] = useState('')
+  const [session, setSession] = useState(() => {
+    const token = localStorage.getItem('swp_token')
+    const user = localStorage.getItem('swp_user')
+    return token && user ? { token, user: JSON.parse(user) } : null
+  })
+  const [form, setForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    password: '',
+  })
+
+  const isRegister = mode === 'register'
+
+  function updateField(event) {
+    setForm((current) => ({
+      ...current,
+      [event.target.name]: event.target.value,
+    }))
+  }
+
+  function changeMode(nextMode) {
+    setMode(nextMode)
+    setMessage('')
+    setMessageType('')
+  }
+
+  async function submitAuth(event) {
+    event.preventDefault()
+    setLoading(true)
+    setMessage('')
+    setMessageType('')
+
+    const endpoint = isRegister ? '/auth/register' : '/auth/login'
+    const payload = isRegister
+      ? form
+      : { email: form.email, password: form.password }
+
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể xử lý yêu cầu.')
+      }
+
+      localStorage.setItem('swp_token', data.token)
+      localStorage.setItem('swp_user', JSON.stringify(data.user))
+      setSession(data)
+      setMessage(isRegister ? 'Đăng ký thành công.' : 'Đăng nhập thành công.')
+      setMessageType('success')
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem('swp_token')
+    localStorage.removeItem('swp_user')
+    setSession(null)
+    setMessage('')
+    setMessageType('')
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <main className="auth-page">
+      <section className="brand-panel" aria-label="Pickleball club">
+        <div className="brand-copy">
+          <span className="eyebrow">Pickleball Club</span>
+          <h1>Đặt sân, vào trận, chơi hết mình.</h1>
+          <p>Đăng nhập để quản lý lịch đặt sân hoặc tạo tài khoản mới trong vài giây.</p>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
+        <div className="court-scene" aria-hidden="true">
+          <div className="court">
+            <span className="net"></span>
+            <span className="kitchen left"></span>
+            <span className="kitchen right"></span>
+          </div>
+          <div className="paddle paddle-one"></div>
+          <div className="paddle paddle-two"></div>
+          <div className="ball"></div>
         </div>
       </section>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      <section className="auth-panel" aria-label="Form xác thực">
+        {session ? (
+          <div className="profile-card">
+            <span className="success-badge">{message || 'Đăng nhập thành công.'}</span>
+            <h2>{session.user.fullName}</h2>
+            <p>{session.user.email}</p>
+
+            <dl className="profile-list">
+              <div>
+                <dt>Vai trò</dt>
+                <dd>{session.user.role}</dd>
+              </div>
+              <div>
+                <dt>Trạng thái</dt>
+                <dd>{session.user.status}</dd>
+              </div>
+              <div>
+                <dt>Số điện thoại</dt>
+                <dd>{session.user.phone}</dd>
+              </div>
+            </dl>
+
+            <button type="button" className="primary-button" onClick={logout}>
+              Đăng xuất
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="form-heading">
+              <span className="form-kicker">Pickleball Booking</span>
+              <h2>{isRegister ? 'Tạo tài khoản' : 'Đăng nhập'}</h2>
+              <p>
+                {isRegister
+                  ? 'Điền thông tin để tạo tài khoản Customer.'
+                  : 'Nhập email và mật khẩu để vào hệ thống.'}
+              </p>
+            </div>
+
+            <div className="switcher" role="tablist" aria-label="Chọn chế độ">
+              <button
+                type="button"
+                className={mode === 'login' ? 'active' : ''}
+                onClick={() => changeMode('login')}
+              >
+                Đăng nhập
+              </button>
+              <button
+                type="button"
+                className={mode === 'register' ? 'active' : ''}
+                onClick={() => changeMode('register')}
+              >
+                Đăng ký
+              </button>
+            </div>
+
+            <form className="auth-form" onSubmit={submitAuth}>
+              {isRegister && (
+                <>
+                  <label>
+                    Họ tên
+                    <input
+                      name="fullName"
+                      value={form.fullName}
+                      onChange={updateField}
+                      placeholder="Nguyễn Văn A"
+                      required
+                    />
+                  </label>
+                  <label>
+                    Số điện thoại
+                    <input
+                      name="phone"
+                      value={form.phone}
+                      onChange={updateField}
+                      placeholder="0901000000"
+                      required
+                    />
+                  </label>
+                </>
+              )}
+
+              <label>
+                Email
+                <input
+                  name="email"
+                  type="email"
+                  value={form.email}
+                  onChange={updateField}
+                  placeholder="customer@pickleball.com"
+                  required
+                />
+              </label>
+
+              <label>
+                Mật khẩu
+                <input
+                  name="password"
+                  type="password"
+                  value={form.password}
+                  onChange={updateField}
+                  placeholder="Ít nhất 6 ký tự"
+                  minLength="6"
+                  required
+                />
+              </label>
+
+              {message && <p className={`message ${messageType}`}>{message}</p>}
+
+              <button className="primary-button" type="submit" disabled={loading}>
+                {loading ? 'Đang xử lý...' : isRegister ? 'Đăng ký' : 'Đăng nhập'}
+              </button>
+            </form>
+          </>
+        )}
+      </section>
+    </main>
   )
 }
 
