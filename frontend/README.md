@@ -1,16 +1,40 @@
-# React + Vite
+# Pickleball Booking System Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend du an su dung React + Vite.
 
-Currently, two official plugins are available:
+## Scripts
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev
+npm run build
+```
 
-## React Compiler
+Mac dinh Vite chay o:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `http://localhost:5173`
 
-## Expanding the ESLint configuration
+Backend API mac dinh:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- `http://localhost:5000/api`
+
+## Ket noi backend
+
+Backend hien co cac endpoint auth:
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/password`
+- `GET /api/auth/me`
+
+Khi goi endpoint can dang nhap, gui token trong header:
+
+```http
+Authorization: Bearer <token>
+```
+
+## Ghi chu
+
+- Khong tinh tien booking o frontend; backend phai tinh lai gia tu MySQL.
+- Frontend chi gui lua chon cua user: san, ngay, gio, addon, voucher.
+- Khong luu token hoac thong tin nhay cam theo cach khong an toan.

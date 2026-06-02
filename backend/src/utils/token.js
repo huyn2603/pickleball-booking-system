@@ -15,7 +15,7 @@ function createToken(user) {
   const header = base64UrlEncode({ alg: 'HS256', typ: 'JWT' });
   const now = Math.floor(Date.now() / 1000);
   const payload = base64UrlEncode({
-    sub: user._id.toString(),
+    sub: String(user.id),
     email: user.email,
     role: user.role,
     iat: now,

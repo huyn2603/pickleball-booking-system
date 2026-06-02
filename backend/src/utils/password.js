@@ -1,39 +1,22 @@
-const crypto = require('crypto');
+function normalizePassword(password) {
+  return String(password || '');
+}
 
-const HASH_PREFIX = 'scrypt';
-const KEY_LENGTH = 64;
+function storePassword(password) {
+  const plainPassword = normalizePassword(password);
 
-function hashPassword(password) {
-  if (!password || password.length < 6) {
+  if (plainPassword.length < 6) {
     throw new Error('Password must contain at least 6 characters.');
   }
 
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(password, salt, KEY_LENGTH).toString('hex');
-  return `${HASH_PREFIX}$${salt}$${hash}`;
+  return plainPassword;
 }
 
-function verifyPassword(password, passwordHash) {
-  if (!password || !passwordHash) {
-    return false;
-  }
-
-  const [prefix, salt, storedHash] = passwordHash.split('$');
-  if (prefix !== HASH_PREFIX || !salt || !storedHash) {
-    return false;
-  }
-
-  const hashBuffer = crypto.scryptSync(password, salt, KEY_LENGTH);
-  const storedBuffer = Buffer.from(storedHash, 'hex');
-
-  if (hashBuffer.length !== storedBuffer.length) {
-    return false;
-  }
-
-  return crypto.timingSafeEqual(hashBuffer, storedBuffer);
+function verifyPassword(password, storedPassword) {
+  return normalizePassword(password) === normalizePassword(storedPassword);
 }
 
 module.exports = {
-  hashPassword,
+  storePassword,
   verifyPassword,
 };

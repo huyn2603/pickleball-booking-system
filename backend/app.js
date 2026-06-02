@@ -15,20 +15,24 @@ app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
-  res.json({ success: true, status: 'ok', database: 'SWP' });
+  res.json({
+    success: true,
+    status: 'ok',
+    database: process.env.DB_NAME || 'pickleball_booking_system',
+  });
 });
 
 app.use('/api/auth', authRoutes);
 
 app.use((req, res) => {
-  res.status(404).json({ success: false, message: 'Không tìm thấy API.' });
+  res.status(404).json({ success: false, message: 'Khong tim thay API.' });
 });
 
 app.use((error, req, res, next) => {
   console.error('Unhandled API error:', error);
   res.status(500).json({
     success: false,
-    message: 'Lỗi máy chủ. Vui lòng thử lại.',
+    message: 'Loi may chu. Vui long thu lai.',
   });
 });
 
