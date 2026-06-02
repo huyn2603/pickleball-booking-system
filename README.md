@@ -1,4 +1,3 @@
-cat > /mnt/user-data/outputs/README_Pickleball_Booking.md << 'ENDOFFILE'
 # Hệ Thống Đặt Sân Pickleball Trực Tuyến (Pickleball Court Booking System)
 
 **Project**: `pickleball-booking-system`
@@ -516,5 +515,4 @@ npm run dev
 | **Owner**      | Xem doanh thu và báo cáo, cấu hình sân và bảng giá, quản lý addon, xem và xử lý feedback từ Customer.                       |
 | **Staff**      | Xem và quản lý booking trong ngày, check-in/check-out khách hàng, ghi nhận thanh toán tại quầy, quản lý addon tại cơ sở.    |
 | **Customer**   | Xem lịch sân, tự đặt sân online, thanh toán, hủy lịch, thêm addon, gửi feedback, xem lịch sử đặt sân của bản thân.          |
-ENDOFFILE
-echo "Done"
+
