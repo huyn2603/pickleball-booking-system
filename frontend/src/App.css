@@ -165,7 +165,8 @@
 }
 
 .auth-section,
-.profile-section {
+.profile-section,
+.owner-section {
   min-height: calc(100svh - 44px);
   padding: 80px 40px;
   display: grid;
@@ -174,7 +175,8 @@
 }
 
 .auth-card,
-.profile-card {
+.profile-card,
+.owner-panel {
   width: min(760px, 100%);
   padding: 40px;
   background: #ffffff;
@@ -183,6 +185,10 @@
 
 .profile-card {
   width: min(880px, 100%);
+}
+
+.owner-panel {
+  width: min(1180px, 100%);
 }
 
 .form-heading {
@@ -299,9 +305,15 @@
 }
 
 .primary-button:disabled,
+.secondary-button:disabled,
 .danger-button:disabled {
   cursor: wait;
   opacity: 0.68;
+}
+
+.secondary-button:disabled,
+.danger-button:disabled {
+  cursor: not-allowed;
 }
 
 .primary-button.compact {
@@ -373,6 +385,70 @@
   overflow-wrap: anywhere;
 }
 
+.account-list {
+  margin-top: 32px;
+  display: grid;
+  gap: 12px;
+}
+
+.account-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 1.2fr) auto;
+  align-items: end;
+  gap: 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  padding: 18px;
+  background: var(--canvas);
+}
+
+.account-summary {
+  display: grid;
+  gap: 5px;
+}
+
+.account-summary strong {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.374px;
+}
+
+.account-summary span,
+.account-summary small {
+  color: var(--muted);
+}
+
+.reason-field {
+  display: grid;
+  gap: 8px;
+  color: #333333;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.reason-field input {
+  width: 100%;
+  height: 44px;
+  box-sizing: border-box;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  padding: 12px 20px;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+
+.reason-field input:focus {
+  border-color: var(--focus-blue);
+  outline: 2px solid var(--focus-blue);
+  outline-offset: 2px;
+}
+
+.account-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 @media (max-width: 960px) {
   .global-nav {
     padding: 0 18px;
@@ -399,14 +475,24 @@
   }
 
   .auth-section,
-  .profile-section {
+  .profile-section,
+  .owner-section {
     min-height: auto;
     padding: 48px 20px;
   }
 
   .auth-card,
-  .profile-card {
+  .profile-card,
+  .owner-panel {
     padding: 24px;
+  }
+
+  .account-row {
+    grid-template-columns: 1fr;
+  }
+
+  .account-actions {
+    justify-content: flex-start;
   }
 }
 
@@ -429,7 +515,8 @@
   }
 
   .auth-card,
-  .profile-card {
+  .profile-card,
+  .owner-panel {
     padding: 20px;
   }
 

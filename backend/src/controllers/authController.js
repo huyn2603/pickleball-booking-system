@@ -133,6 +133,15 @@ function me(req, res) {
   return res.json({ success: true, user: User.toSafeObject(req.user) });
 }
 
+function requireOwner(req, res) {
+  if (req.user.role !== 'Owner') {
+    sendError(res, 403, 'Chỉ Owner được quản lý tài khoản.');
+    return false;
+  }
+
+  return true;
+}
+
 async function updateMe(req, res) {
   try {
     const { fullName, email, phone } = req.body;
@@ -174,12 +183,90 @@ async function deleteMe(req, res) {
   }
 }
 
+async function listUsers(req, res) {
+  try {
+    if (!requireOwner(req, res)) {
+      return null;
+    }
+
+    const users = await User.listAll();
+    return res.json({ success: true, users: users.map(User.toSafeObject) });
+  } catch (error) {
+    console.error('List users error:', error);
+    return sendError(res, 500, 'Lỗi máy chủ khi lấy danh sách tài khoản. Vui lòng thử lại.');
+  }
+}
+
+async function changeUserBanStatus(req, res, nextStatus, action) {
+  try {
+    if (!requireOwner(req, res)) {
+      return null;
+    }
+
+    const targetId = Number(req.params.id);
+    const reason = String(req.body.reason || '').trim();
+
+    if (!targetId) {
+      return sendError(res, 400, 'Tài khoản không hợp lệ.');
+    }
+
+    if (targetId === Number(req.user.id)) {
+      return sendError(res, 400, 'Owner không thể tự ban hoặc gỡ ban tài khoản của mình.');
+    }
+
+    if (!reason) {
+      return sendError(res, 400, 'Vui lòng nhập lý do.');
+    }
+
+    const target = await User.findById(targetId);
+    if (!target) {
+      return sendError(res, 404, 'Không tìm thấy tài khoản.');
+    }
+
+    if (target.role !== 'Customer') {
+      return sendError(res, 403, 'Owner chỉ được ban hoặc gỡ ban tài khoản Customer.');
+    }
+
+    const updatedUser = await User.updateStatus(targetId, nextStatus);
+    await User.createAuditLog({
+      actorId: req.user.id,
+      action,
+      recordId: targetId,
+      oldData: { status: target.status },
+      newData: {
+        status: nextStatus,
+        reason,
+        targetEmail: target.email,
+        targetRole: target.role,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    return res.json({ success: true, user: User.toSafeObject(updatedUser) });
+  } catch (error) {
+    console.error(`${action} error:`, error);
+    return sendError(res, 500, 'Lỗi máy chủ khi cập nhật trạng thái tài khoản. Vui lòng thử lại.');
+  }
+}
+
+function banUser(req, res) {
+  return changeUserBanStatus(req, res, 'Blocked', 'BAN_USER');
+}
+
+function unbanUser(req, res) {
+  return changeUserBanStatus(req, res, 'Active', 'UNBAN_USER');
+}
+
 module.exports = {
+  banUser,
   deleteMe,
   forgotPassword,
   getPlainPassword,
+  listUsers,
   login,
   me,
   register,
+  unbanUser,
   updateMe,
 };

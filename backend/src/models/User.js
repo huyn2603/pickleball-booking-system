@@ -68,6 +68,15 @@ async function findById(id) {
   return mapUser(rows[0]);
 }
 
+async function listAll() {
+  const rows = await query(
+    `${baseSelect}
+     ORDER BY u.created_at DESC`,
+  );
+
+  return rows.map(mapUser);
+}
+
 async function getRoleIdByCode(code) {
   const rows = await query(
     'SELECT id FROM roles WHERE code = :code LIMIT 1',
@@ -137,13 +146,43 @@ async function deactivate(id) {
   return findById(id);
 }
 
+async function updateStatus(id, status) {
+  await query(
+    'UPDATE users SET status = :status WHERE id = :id',
+    { id, status },
+  );
+
+  return findById(id);
+}
+
+async function createAuditLog({ actorId, action, recordId, oldData, newData, ipAddress, userAgent }) {
+  await query(
+    `INSERT INTO audit_logs
+      (user_id, action, table_name, record_id, old_data, new_data, ip_address, user_agent)
+     VALUES
+      (:actorId, :action, 'users', :recordId, CAST(:oldData AS JSON), CAST(:newData AS JSON), :ipAddress, :userAgent)`,
+    {
+      actorId,
+      action,
+      recordId,
+      oldData: JSON.stringify(oldData || null),
+      newData: JSON.stringify(newData || null),
+      ipAddress: ipAddress || null,
+      userAgent: userAgent || null,
+    },
+  );
+}
+
 module.exports = {
   create,
+  createAuditLog,
   deactivate,
   findByEmail,
   findById,
+  listAll,
   toSafeObject,
   updateLastLogin,
   updatePassword,
   updateProfile,
+  updateStatus,
 };

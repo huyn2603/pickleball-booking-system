@@ -26,6 +26,8 @@ function App() {
   const [page, setPage] = useState(() => (readStoredSession() ? 'profile' : 'home'))
   const [mode, setMode] = useState('login')
   const [editingProfile, setEditingProfile] = useState(false)
+  const [ownerUsers, setOwnerUsers] = useState([])
+  const [banReasons, setBanReasons] = useState({})
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('')
@@ -39,6 +41,8 @@ function App() {
 
   const isRegister = mode === 'register'
   const isForgotPassword = mode === 'forgot-password'
+  const isAdmin = session?.user?.role === 'Admin'
+  const isOwner = session?.user?.role === 'Owner'
 
   function updateField(event) {
     setForm((current) => ({
@@ -47,30 +51,39 @@ function App() {
     }))
   }
 
-  function showAuth(nextMode) {
-    setMode(nextMode)
-    setPage('auth')
+  function clearNotice() {
     setMessage('')
     setMessageType('')
   }
 
+  function showAuth(nextMode) {
+    setMode(nextMode)
+    setPage('auth')
+    clearNotice()
+  }
+
   function showHome() {
     setPage('home')
-    setMessage('')
-    setMessageType('')
+    setEditingProfile(false)
+    clearNotice()
   }
 
   function showProfile() {
     setPage('profile')
     setEditingProfile(false)
-    setMessage('')
-    setMessageType('')
+    clearNotice()
+  }
+
+  async function showOwnerUsers() {
+    setPage('owner-users')
+    setEditingProfile(false)
+    clearNotice()
+    await fetchOwnerUsers()
   }
 
   function startEditProfile() {
     setEditingProfile(true)
-    setMessage('')
-    setMessageType('')
+    clearNotice()
     setForm((current) => ({
       ...current,
       fullName: session.user.fullName || '',
@@ -85,13 +98,36 @@ function App() {
     setSession(nextSession)
   }
 
+  async function fetchOwnerUsers() {
+    if (!session?.token) {
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch(`${API_URL}/auth/users`, {
+        headers: { Authorization: `Bearer ${session.token}` },
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể lấy danh sách tài khoản.')
+      }
+
+      setOwnerUsers(data.users || [])
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function submitAuth(event) {
     event.preventDefault()
     setLoading(true)
-    setMessage('')
-    setMessageType('')
+    clearNotice()
 
-    // Đăng ký chỉ tạo Customer; đăng nhập trả về role thực tế từ backend.
     const endpoint = isRegister ? '/auth/register' : '/auth/login'
     const payload = isRegister
       ? {
@@ -136,8 +172,7 @@ function App() {
   async function submitForgotPassword(event) {
     event.preventDefault()
     setLoading(true)
-    setMessage('')
-    setMessageType('')
+    clearNotice()
 
     if (form.password !== form.confirmPassword) {
       setLoading(false)
@@ -177,8 +212,7 @@ function App() {
   async function submitProfile(event) {
     event.preventDefault()
     setLoading(true)
-    setMessage('')
-    setMessageType('')
+    clearNotice()
 
     try {
       const response = await fetch(`${API_URL}/auth/me`, {
@@ -199,8 +233,7 @@ function App() {
         throw new Error(data.message || 'Không thể cập nhật hồ sơ.')
       }
 
-      const nextSession = { token: session.token, user: data.user }
-      persistSession(nextSession)
+      persistSession({ token: session.token, user: data.user })
       setEditingProfile(false)
       setMessage('Hồ sơ đã được cập nhật.')
       setMessageType('success')
@@ -219,8 +252,7 @@ function App() {
     }
 
     setLoading(true)
-    setMessage('')
-    setMessageType('')
+    clearNotice()
 
     try {
       const response = await fetch(`${API_URL}/auth/me`, {
@@ -234,6 +266,59 @@ function App() {
       }
 
       logout('Tài khoản đã được xóa.')
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function updateBanReason(userId, reason) {
+    setBanReasons((current) => ({
+      ...current,
+      [userId]: reason,
+    }))
+  }
+
+  async function changeUserStatus(userId, action) {
+    const targetUser = ownerUsers.find((user) => user.id === userId)
+    if (!targetUser || targetUser.role !== 'Customer' || targetUser.id === session.user.id) {
+      setMessage('Owner chỉ được ban hoặc gỡ ban tài khoản Customer.')
+      setMessageType('error')
+      return
+    }
+
+    const reason = String(banReasons[userId] || '').trim()
+
+    if (!reason) {
+      setMessage('Vui lòng nhập lý do trước khi cập nhật trạng thái tài khoản.')
+      setMessageType('error')
+      return
+    }
+
+    setLoading(true)
+    clearNotice()
+
+    try {
+      const response = await fetch(`${API_URL}/auth/users/${userId}/${action}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể cập nhật trạng thái tài khoản.')
+      }
+
+      setOwnerUsers((current) => current.map((user) => (user.id === userId ? data.user : user)))
+      updateBanReason(userId, '')
+      setMessage(action === 'ban' ? 'Tài khoản đã bị ban.' : 'Tài khoản đã được gỡ ban.')
+      setMessageType('success')
     } catch (error) {
       setMessage(error.message)
       setMessageType('error')
@@ -266,6 +351,11 @@ function App() {
               <button type="button" onClick={showHome}>
                 Trang chủ
               </button>
+              {isOwner && (
+                <button type="button" onClick={showOwnerUsers}>
+                  Tài khoản
+                </button>
+              )}
               <button type="button" onClick={showProfile}>
                 Hồ sơ
               </button>
@@ -292,14 +382,16 @@ function App() {
             <div className="home-copy">
               <span className="eyebrow">Pickleball Club Hà Nội</span>
               <h1>Đặt sân nhanh. Quản lý gọn. Chơi đúng giờ.</h1>
-              <div className="hero-actions">
-                <button type="button" className="primary-button compact" onClick={() => showAuth('register')}>
-                  Đặt sân ngay
-                </button>
-                <button type="button" className="secondary-button" onClick={() => showAuth('login')}>
-                  Đăng nhập
-                </button>
-              </div>
+              {!session && (
+                <div className="hero-actions">
+                  <button type="button" className="primary-button compact" onClick={() => showAuth('register')}>
+                    Đặt sân ngay
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => showAuth('login')}>
+                    Đăng nhập
+                  </button>
+                </div>
+              )}
             </div>
             <img className="hero-image" src={heroImage} alt="Sân pickleball" />
           </section>
@@ -341,11 +433,7 @@ function App() {
 
             {!isForgotPassword && (
               <div className="switcher" role="tablist" aria-label="Chọn chế độ">
-                <button
-                  type="button"
-                  className={mode === 'login' ? 'active' : ''}
-                  onClick={() => showAuth('login')}
-                >
+                <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => showAuth('login')}>
                   Đăng nhập
                 </button>
                 <button
@@ -371,7 +459,6 @@ function App() {
                     required
                   />
                 </label>
-
                 <label>
                   Mật khẩu mới
                   <input
@@ -384,7 +471,6 @@ function App() {
                     required
                   />
                 </label>
-
                 <label>
                   Nhập lại mật khẩu mới
                   <input
@@ -430,7 +516,6 @@ function App() {
                     </label>
                   </>
                 )}
-
                 <label>
                   Email
                   <input
@@ -442,7 +527,6 @@ function App() {
                     required
                   />
                 </label>
-
                 <label>
                   Mật khẩu
                   <input
@@ -560,16 +644,76 @@ function App() {
 
                 {message && <p className={`message ${messageType}`}>{message}</p>}
 
-                <div className="profile-actions">
-                  <button type="button" className="primary-button compact" onClick={startEditProfile}>
-                    Sửa hồ sơ
-                  </button>
-                  <button type="button" className="danger-button" onClick={deleteProfile} disabled={loading}>
-                    Xóa tài khoản
-                  </button>
-                </div>
+                {!isAdmin && (
+                  <div className="profile-actions">
+                    <button type="button" className="primary-button compact" onClick={startEditProfile}>
+                      Sửa hồ sơ
+                    </button>
+                    <button type="button" className="danger-button" onClick={deleteProfile} disabled={loading}>
+                      Xóa tài khoản
+                    </button>
+                  </div>
+                )}
               </>
             )}
+          </article>
+        </section>
+      )}
+
+      {page === 'owner-users' && isOwner && (
+        <section className="owner-section" aria-label="Quản lý tài khoản">
+          <article className="owner-panel">
+            <div className="profile-heading">
+              <span className="eyebrow">Owner</span>
+              <h1>Quản lý tài khoản</h1>
+            </div>
+
+            {message && <p className={`message ${messageType}`}>{message}</p>}
+
+            <div className="account-list">
+              {ownerUsers.map((user) => (
+                <article className="account-row" key={user.id}>
+                  <div className="account-summary">
+                    <strong>{user.fullName}</strong>
+                    <span>{user.email}</span>
+                    <small>
+                      {user.role} · {user.status}
+                    </small>
+                  </div>
+
+                  <label className="reason-field">
+                    Lý do
+                    <input
+                      value={banReasons[user.id] || ''}
+                      onChange={(event) => updateBanReason(user.id, event.target.value)}
+                      placeholder="Nhập lý do ban hoặc gỡ ban"
+                    />
+                  </label>
+
+                  <div className="account-actions">
+                    {user.status === 'Blocked' ? (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => changeUserStatus(user.id, 'unban')}
+                        disabled={loading || user.id === session.user.id || user.role !== 'Customer'}
+                      >
+                        Gỡ ban
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="danger-button"
+                        onClick={() => changeUserStatus(user.id, 'ban')}
+                        disabled={loading || user.id === session.user.id || user.role !== 'Customer'}
+                      >
+                        Ban
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
           </article>
         </section>
       )}
