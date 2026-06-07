@@ -68,15 +68,6 @@ async function findById(id) {
   return mapUser(rows[0]);
 }
 
-async function listAll() {
-  const rows = await query(
-    `${baseSelect}
-     ORDER BY u.created_at DESC`,
-  );
-
-  return rows.map(mapUser);
-}
-
 async function getRoleIdByCode(code) {
   const rows = await query(
     'SELECT id FROM roles WHERE code = :code LIMIT 1',
@@ -137,15 +128,6 @@ async function updateProfile(id, { fullName, email, phone }) {
   return findById(id);
 }
 
-async function deactivate(id) {
-  await query(
-    'UPDATE users SET status = "Inactive" WHERE id = :id',
-    { id },
-  );
-
-  return findById(id);
-}
-
 async function updateStatus(id, status) {
   await query(
     'UPDATE users SET status = :status WHERE id = :id',
@@ -155,31 +137,43 @@ async function updateStatus(id, status) {
   return findById(id);
 }
 
-async function createAuditLog({ actorId, action, recordId, oldData, newData, ipAddress, userAgent }) {
+async function listByRoles(roles) {
+  const rows = await query(
+    `${baseSelect}
+     WHERE r.code IN (:roles)
+     ORDER BY u.created_at DESC`,
+    { roles },
+  );
+
+  return rows.map(mapUser);
+}
+
+async function listBanned() {
+  const rows = await query(
+    `${baseSelect}
+     WHERE u.status = "Blocked"
+     ORDER BY u.updated_at DESC`,
+  );
+
+  return rows.map(mapUser);
+}
+
+async function removeByRoles(id, roles) {
   await query(
-    `INSERT INTO audit_logs
-      (user_id, action, table_name, record_id, old_data, new_data, ip_address, user_agent)
-     VALUES
-      (:actorId, :action, 'users', :recordId, CAST(:oldData AS JSON), CAST(:newData AS JSON), :ipAddress, :userAgent)`,
-    {
-      actorId,
-      action,
-      recordId,
-      oldData: JSON.stringify(oldData || null),
-      newData: JSON.stringify(newData || null),
-      ipAddress: ipAddress || null,
-      userAgent: userAgent || null,
-    },
+    `DELETE u FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE u.id = :id AND r.code IN (:roles)`,
+    { id, roles },
   );
 }
 
 module.exports = {
   create,
-  createAuditLog,
-  deactivate,
   findByEmail,
   findById,
-  listAll,
+  listBanned,
+  listByRoles,
+  removeByRoles,
   toSafeObject,
   updateLastLogin,
   updatePassword,
