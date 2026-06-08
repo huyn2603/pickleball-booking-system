@@ -496,10 +496,13 @@ function App() {
 
       {page === 'home' && (
         <>
-          <section className="home-hero" aria-label="Đặt sân thể thao">
+          <section className="home-hero" aria-label="Đặt sân pickleball">
             <div className="hero-background" />
             <div className="hero-content">
-              <h1>Đặt sân thể thao nhanh - dễ - tiện</h1>
+              <h1>
+                <span className="hero-title-line">Đặt sân pickleball</span>
+                <span className="hero-title-line">nhanh - dễ - tiện</span>
+              </h1>
               <p>Tìm và đặt sân pickleball ngay trong vài giây. Xem giá thực, lịch trống theo thời gian thực.</p>
               <div className="hero-actions">
                 <button type="button" className="primary-button" onClick={showCourts}>Tìm sân ngay</button>

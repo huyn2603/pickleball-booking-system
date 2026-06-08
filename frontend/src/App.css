@@ -329,7 +329,7 @@ button {
 
 .hero-content {
   width: min(650px, 86vw);
-  margin-left: 14.5vw;
+  margin-left: 10vw;
   color: var(--canvas);
 }
 
@@ -356,10 +356,15 @@ button {
 .hero-content h1 {
   margin: 22px 0 16px;
   max-width: 680px;
-  font-size: clamp(46px, 6vw, 82px);
+  font-size: clamp(36px, 4.6vw, 64px);
   font-weight: 950;
   line-height: 0.95;
   letter-spacing: 0;
+}
+
+.hero-title-line {
+  display: block;
+  white-space: nowrap;
 }
 
 .hero-content p {
