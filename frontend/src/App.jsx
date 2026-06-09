@@ -28,6 +28,35 @@ function formatMoney(value) {
   return `${Math.round(Number(value || 0) / 1000)}K`
 }
 
+function formatFullMoney(value) {
+  return `${Number(value || 0).toLocaleString('vi-VN')}đ`
+}
+
+const bookingStatusLabels = {
+  pending: 'Đang giữ',
+  confirmed: 'Đã xác nhận',
+  checked_in: 'Đang chơi',
+  completed: 'Hoàn thành',
+  cancelled: 'Đã hủy',
+  expired: 'Hết hạn',
+  no_show: 'No-show',
+}
+
+const paymentStatusLabels = {
+  unpaid: 'Chưa thanh toán',
+  pending: 'Đang xử lý',
+  paid: 'Đã thanh toán',
+  partially_refunded: 'Hoàn một phần',
+  refunded: 'Đã hoàn tiền',
+  failed: 'Thất bại',
+}
+
+const addonDisplay = {
+  'BALL-SET': { name: 'Bộ bóng pickleball', category: 'Bóng', description: 'Bóng tập luyện và thi đấu tại sân' },
+  WATER: { name: 'Nước suối', category: 'Đồ uống', description: 'Nước đóng chai bán tại quầy' },
+  'RACKET-STD': { name: 'Thuê vợt tiêu chuẩn', category: 'Vợt', description: 'Vợt pickleball cho khách thuê theo buổi' },
+}
+
 function readStoredSession() {
   const token = localStorage.getItem('swp_token')
   const user = localStorage.getItem('swp_user')
@@ -74,6 +103,8 @@ function App() {
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('')
   const [accounts, setAccounts] = useState(null)
+  const [staffDashboard, setStaffDashboard] = useState({ date: getTodayString(), bookings: [], addons: [] })
+  const [staffLoading, setStaffLoading] = useState(false)
   const [form, setForm] = useState({
     fullName: '',
     email: '',
@@ -111,6 +142,12 @@ function App() {
     }
   }, [session?.token])
 
+  useEffect(() => {
+    if (session && role === 'Staff') {
+      fetchStaffDashboard()
+    }
+  }, [session?.token, role])
+
   function updateField(event) {
     setForm((current) => ({
       ...current,
@@ -147,6 +184,18 @@ function App() {
     setEditingProfile(false)
     setAvatarMenuOpen(false)
     resetNotice()
+  }
+
+  function showManagement() {
+    setAvatarMenuOpen(false)
+    resetNotice()
+
+    if (!session) {
+      showAuth('login')
+      return
+    }
+
+    showDashboard()
   }
 
   function showCourts() {
@@ -258,6 +307,99 @@ function App() {
     } catch (error) {
       setMessage(error.message)
       setMessageType('error')
+    }
+  }
+
+  async function fetchStaffDashboard() {
+    if (!session?.token) {
+      return
+    }
+
+    setStaffLoading(true)
+    try {
+      const response = await fetch(`${API_URL}/staff/dashboard?date=${staffDashboard.date}`, {
+        headers: { Authorization: `Bearer ${session.token}` },
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Khong the tai dashboard Staff.')
+      }
+
+      setStaffDashboard({
+        date: data.date,
+        bookings: data.bookings || [],
+        addons: data.addons || [],
+      })
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setStaffLoading(false)
+    }
+  }
+
+  async function handleStaffBookingAction(booking, action, extra = {}) {
+    const endpoints = {
+      checkIn: `/staff/bookings/${booking.id}/check-in`,
+      checkOut: `/staff/bookings/${booking.id}/check-out`,
+      payment: `/staff/bookings/${booking.id}/payment`,
+    }
+
+    setStaffLoading(true)
+    resetNotice()
+    try {
+      const response = await fetch(`${API_URL}${endpoints[action]}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: action === 'payment' ? JSON.stringify(extra) : undefined,
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Khong the cap nhat booking.')
+      }
+
+      setMessage(data.extraMinutes ? `${data.message} Phat sinh ${data.extraMinutes} phut.` : data.message)
+      setMessageType('success')
+      await fetchStaffDashboard()
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setStaffLoading(false)
+    }
+  }
+
+  async function handleAddonStock(addon, stockQuantity) {
+    setStaffLoading(true)
+    resetNotice()
+    try {
+      const response = await fetch(`${API_URL}/staff/addons/${addon.id}/stock`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ stockQuantity }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Khong the cap nhat addon.')
+      }
+
+      setMessage(data.message)
+      setMessageType('success')
+      await fetchStaffDashboard()
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setStaffLoading(false)
     }
   }
 
@@ -471,7 +613,14 @@ function App() {
           <span>Pickleball</span>
         </button>
 
-        <div className="nav-center">
+        <div
+          className="nav-center"
+          onClick={(event) => {
+            if (event.target === event.currentTarget.children[2]) {
+              showManagement()
+            }
+          }}
+        >
           <button type="button" onClick={showCourts}>Tìm sân</button>
           <button type="button">Loại sân</button>
           <button type="button">Phần mềm quản lý</button>
@@ -738,7 +887,15 @@ function App() {
 
           {role === 'Admin' && <AdminAccounts accounts={accounts} loading={loading} onManage={manageAccount} />}
           {role === 'Owner' && <OwnerTools accounts={accounts} loading={loading} onManage={manageAccount} courtForm={courtForm} onCourtField={updateCourtField} onAddCourt={addCourt} />}
-          {role === 'Staff' && <StaffTools />}
+          {role === 'Staff' && (
+            <StaffToolsPanel
+              dashboard={staffDashboard}
+              loading={staffLoading}
+              onRefresh={fetchStaffDashboard}
+              onBookingAction={handleStaffBookingAction}
+              onAddonStock={handleAddonStock}
+            />
+          )}
           {role === 'Customer' && <CustomerTools />}
         </section>
       )}
@@ -845,6 +1002,152 @@ function StaffTools() {
       <FeaturePanel title="Quản lý sân" items={['Mở/khóa sân theo ca', 'Cập nhật lịch trống', 'Ghi nhận bảo trì']} />
       <FeaturePanel title="Quản lý Staff" items={['Xem lịch nhân viên', 'Bàn giao ca', 'Theo dõi nhiệm vụ']} />
       <FeaturePanel title="Quản lý doanh thu" items={['Tổng doanh thu ngày', 'Booking đã thanh toán', 'Báo cáo cuối ca']} />
+    </section>
+  )
+}
+
+function StaffToolsPanel({ dashboard, loading, onRefresh, onBookingAction, onAddonStock }) {
+  const bookings = dashboard.bookings || []
+  const addons = dashboard.addons || []
+  const totalRevenue = bookings.reduce((sum, booking) => sum + Number(booking.paidAmount || 0), 0)
+  const activeBookings = bookings.filter((booking) => ['confirmed', 'checked_in'].includes(booking.bookingStatus)).length
+
+  function updateStock(addon) {
+    const display = addonDisplay[addon.code] || {}
+    const nextValue = window.prompt(`Nhập số lượng mới cho ${display.name || addon.name}`, addon.stockQuantity)
+    if (nextValue === null) {
+      return
+    }
+
+    const stockQuantity = Number(nextValue)
+    if (!Number.isInteger(stockQuantity) || stockQuantity < 0) {
+      window.alert('Số lượng phải là số nguyên không âm.')
+      return
+    }
+
+    onAddonStock(addon, stockQuantity)
+  }
+
+  return (
+    <section className="staff-workspace" aria-label="Bảng vận hành của nhân viên">
+      <div className="staff-stat-grid">
+        <article>
+          <span>Booking hôm nay</span>
+          <strong>{bookings.length}</strong>
+        </article>
+        <article>
+          <span>Đang vận hành</span>
+          <strong>{activeBookings}</strong>
+        </article>
+        <article>
+          <span>Đã thu</span>
+          <strong>{formatFullMoney(totalRevenue)}</strong>
+        </article>
+      </div>
+
+      <article className="staff-panel">
+        <div className="panel-heading">
+          <h2>Lịch booking ngày {dashboard.date}</h2>
+          <button type="button" className="secondary-button small" onClick={onRefresh} disabled={loading}>
+            {loading ? 'Đang tải...' : 'Tải lại'}
+          </button>
+        </div>
+        <div className="staff-table-wrap">
+          <table className="staff-table">
+            <thead>
+              <tr>
+                <th>Mã</th>
+                <th>Khách</th>
+                <th>Sân</th>
+                <th>Giờ</th>
+                <th>Trạng thái</th>
+                <th>Thanh toán</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bookings.length === 0 && (
+                <tr>
+                  <td colSpan="7" className="empty-cell">Chưa có booking trong ngày này.</td>
+                </tr>
+              )}
+              {bookings.map((booking) => (
+                <tr key={booking.id}>
+                  <td><strong>{booking.bookingCode}</strong></td>
+                  <td>
+                    <span>{booking.customerName}</span>
+                    <small>{booking.customerPhone || booking.customerEmail}</small>
+                  </td>
+                  <td>{booking.courtCode} - {booking.courtName}</td>
+                  <td>{booking.startTime || '--'} - {booking.endTime || '--'}</td>
+                  <td><span className={`status-pill ${booking.bookingStatus}`}>{bookingStatusLabels[booking.bookingStatus] || booking.bookingStatus}</span></td>
+                  <td>
+                    <span>{paymentStatusLabels[booking.paymentStatus] || booking.paymentStatus}</span>
+                    <small>{formatFullMoney(booking.totalAmount)}</small>
+                  </td>
+                  <td>
+                    <div className="row-actions">
+                      {booking.paymentStatus !== 'paid' && (
+                        <button
+                          type="button"
+                          className="secondary-button small"
+                          onClick={() => onBookingAction(booking, 'payment', { paymentMethod: 'cash' })}
+                          disabled={loading}
+                        >
+                          Thu tiền
+                        </button>
+                      )}
+                      {booking.bookingStatus === 'confirmed' && (
+                        <button type="button" className="primary-button small" onClick={() => onBookingAction(booking, 'checkIn')} disabled={loading}>
+                          Check-in
+                        </button>
+                      )}
+                      {booking.bookingStatus === 'checked_in' && (
+                        <button type="button" className="primary-button small" onClick={() => onBookingAction(booking, 'checkOut')} disabled={loading}>
+                          Check-out
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article className="staff-panel">
+        <div className="panel-heading">
+          <h2>Dịch vụ kèm tại cơ sở</h2>
+          <span>{addons.length}</span>
+        </div>
+        <div className="addon-grid">
+          {addons.map((addon) => {
+            const display = addonDisplay[addon.code] || {}
+            const isInactive = addon.status !== 'active' || addon.stockQuantity === 0
+
+            return (
+            <div className={`addon-card ${isInactive ? 'inactive' : ''}`} key={addon.id}>
+              <div className="addon-copy">
+                <small>{display.category || addon.categoryName}</small>
+                <strong>{display.name || addon.name}</strong>
+                <span>{display.description || 'Dịch vụ kèm cho booking tại sân'}</span>
+              </div>
+              <div className="addon-stock">
+                <span className={`inventory-status ${isInactive ? 'inactive' : 'active'}`}>
+                  {isInactive ? 'Tạm hết' : 'Đang bán'}
+                </span>
+                <strong>{addon.stockQuantity}</strong>
+                <small>{formatFullMoney(addon.unitPrice)}</small>
+                <button type="button" className="secondary-button small" onClick={() => updateStock(addon)} disabled={loading}>
+                  Cập nhật
+                </button>
+              </div>
+            </div>
+            )
+          })}
+        </div>
+      </article>
     </section>
   )
 }
