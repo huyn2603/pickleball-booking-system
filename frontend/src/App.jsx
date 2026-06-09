@@ -15,24 +15,17 @@ const roleLabels = {
   Customer: 'Khách hàng',
 }
 
-const initialCourts = [
-  { id: 1, name: 'Pickleball Tây Hồ Club', district: 'Tây Hồ, Hà Nội', type: 'outdoor', count: 3 },
-  { id: 2, name: 'Hanoi Indoor Pickleball', district: 'Cầu Giấy, Hà Nội', type: 'indoor', count: 4 },
-  { id: 3, name: 'PB Hoàn Kiếm Center', district: 'Hoàn Kiếm, Hà Nội', type: 'indoor', count: 2 },
-  { id: 4, name: 'ACE Pickleball Đống Đa', district: 'Đống Đa, Hà Nội', type: 'outdoor', count: 2 },
-  { id: 5, name: 'Pickleball Long Biên Arena', district: 'Long Biên, Hà Nội', type: 'indoor', count: 5 },
-  { id: 6, name: 'Thanh Xuân PB Courts', district: 'Thanh Xuân, Hà Nội', type: 'outdoor', count: 2 },
-  { id: 7, name: 'Mỹ Đình Pickleball Hub', district: 'Nam Từ Liêm, Hà Nội', type: 'indoor', count: 6 },
-  { id: 8, name: 'Hà Đông Outdoor PB', district: 'Hà Đông, Hà Nội', type: 'outdoor', count: 3 },
-]
+function getTodayString() {
+  const now = new Date()
+  return [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-')
+}
 
-function readStoredCourts() {
-  try {
-    return JSON.parse(localStorage.getItem('swp_courts')) || initialCourts
-  } catch {
-    localStorage.removeItem('swp_courts')
-    return initialCourts
-  }
+function formatMoney(value) {
+  return `${Math.round(Number(value || 0) / 1000)}K`
 }
 
 function readStoredSession() {
@@ -69,10 +62,12 @@ function App() {
   const [page, setPage] = useState(() => (readStoredSession() ? 'dashboard' : 'home'))
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
   const [avatarSrc, setAvatarSrc] = useState(() => readStoredAvatar(readStoredSession()?.user))
-  const [courts, setCourts] = useState(readStoredCourts)
+  const [courts, setCourts] = useState([])
+  const [courtsLoading, setCourtsLoading] = useState(false)
   const [courtView, setCourtView] = useState('list')
   const [courtFilter, setCourtFilter] = useState('all')
   const [courtPage, setCourtPage] = useState(1)
+  const [selectedCourtId, setSelectedCourtId] = useState(null)
   const [mode, setMode] = useState('login')
   const [editingProfile, setEditingProfile] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -102,12 +97,19 @@ function App() {
   const totalCourtPages = Math.max(1, Math.ceil(filteredCourts.length / courtsPerPage))
   const safeCourtPage = Math.min(courtPage, totalCourtPages)
   const pagedCourts = filteredCourts.slice((safeCourtPage - 1) * courtsPerPage, safeCourtPage * courtsPerPage)
+  const selectedCourt = courts.find((court) => Number(court.id) === Number(selectedCourtId))
 
   useEffect(() => {
     if (session && canManageAccounts) {
       fetchAccounts()
     }
   }, [session?.token, role])
+
+  useEffect(() => {
+    if (session) {
+      fetchCourts()
+    }
+  }, [session?.token])
 
   function updateField(event) {
     setForm((current) => ({
@@ -157,26 +159,26 @@ function App() {
     }
 
     setPage('courts')
+    fetchCourts()
+  }
+
+  function showCourtDetail(court) {
+    setAvatarMenuOpen(false)
+    resetNotice()
+
+    if (!session) {
+      showAuth('login')
+      return
+    }
+
+    setSelectedCourtId(court.id)
+    setPage('court-detail')
   }
 
   function addCourt(event) {
     event.preventDefault()
-
-    const nextCourt = {
-      id: Date.now(),
-      name: courtForm.name.trim(),
-      district: `${courtForm.district}, Hà Nội`,
-      type: courtForm.type,
-      count: Math.max(1, Number(courtForm.count) || 1),
-    }
-    const nextCourts = [nextCourt, ...courts]
-
-    localStorage.setItem('swp_courts', JSON.stringify(nextCourts))
-    setCourts(nextCourts)
-    setCourtPage(1)
-    setCourtForm({ name: '', district: 'Tây Hồ', type: 'outdoor', count: 1 })
-    setMessage('Đã thêm cơ sở sân pickleball.')
-    setMessageType('success')
+    setMessage('Danh sách sân hiện lấy từ database. Chức năng thêm sân cần API quản lý sân riêng.')
+    setMessageType('error')
   }
 
   function getPageItems() {
@@ -213,6 +215,32 @@ function App() {
     localStorage.setItem('swp_user', JSON.stringify(nextSession.user))
     setSession(nextSession)
     setAvatarSrc(readStoredAvatar(nextSession.user))
+  }
+
+  async function fetchCourts() {
+    if (!session?.token) {
+      return
+    }
+
+    setCourtsLoading(true)
+    try {
+      const response = await fetch(`${API_URL}/courts`, {
+        headers: { Authorization: `Bearer ${session.token}` },
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể tải danh sách sân.')
+      }
+
+      setCourts(data.courts || [])
+      setCourtPage(1)
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setCourtsLoading(false)
+    }
   }
 
   async function fetchAccounts() {
@@ -444,7 +472,7 @@ function App() {
         </button>
 
         <div className="nav-center">
-          <button type="button">Tìm sân</button>
+          <button type="button" onClick={showCourts}>Tìm sân</button>
           <button type="button">Loại sân</button>
           <button type="button">Phần mềm quản lý</button>
         </div>
@@ -628,16 +656,21 @@ function App() {
 
           <div className="courts-content">
             <div className="courts-toolbar">
-              <strong>{filteredCourts.length} cơ sở · Trang {safeCourtPage}/{totalCourtPages}</strong>
+              <strong>{courtsLoading ? 'Đang tải sân từ database...' : `${filteredCourts.length} sân · Trang ${safeCourtPage}/${totalCourtPages}`}</strong>
               <div className="view-toggle" aria-label="Đổi kiểu hiển thị">
                 <button type="button" className={courtView === 'list' ? 'active' : ''} onClick={() => { setCourtView('list'); setCourtPage(1) }}>☷</button>
                 <button type="button" className={courtView === 'grid' ? 'active' : ''} onClick={() => { setCourtView('grid'); setCourtPage(1) }}>▦</button>
               </div>
             </div>
 
+            {message && <p className={`message ${messageType}`}>{message}</p>}
+
             <div className={courtView === 'grid' ? 'court-grid' : 'court-list'}>
+              {!courtsLoading && pagedCourts.length === 0 && (
+                <p className="empty-text">Chưa có sân nào trong database.</p>
+              )}
               {pagedCourts.map((court) => (
-                <CourtCard key={court.id} court={court} view={courtView} />
+                <CourtCard key={court.id} court={court} view={courtView} onDetail={showCourtDetail} />
               ))}
             </div>
 
@@ -665,6 +698,10 @@ function App() {
             </div>
           </div>
         </section>
+      )}
+
+      {page === 'court-detail' && session && selectedCourt && (
+        <CourtDetailPage court={selectedCourt} token={session.token} onBack={showCourts} />
       )}
 
       {page === 'dashboard' && session && (
@@ -821,7 +858,195 @@ function CustomerTools() {
   )
 }
 
-function CourtCard({ court, view }) {
+function CourtDetailPage({ court, token, onBack }) {
+  const [courtDetail, setCourtDetail] = useState(court)
+  const [availability, setAvailability] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailMessage, setDetailMessage] = useState('')
+  const selectedDate = getTodayString()
+  const activeCourt = courtDetail || court
+  const isOutdoor = activeCourt.type === 'outdoor'
+  const image = isOutdoor ? courtOutdoor : courtIndoor
+  const typeLabel = isOutdoor ? 'Sân ngoài trời' : 'Sân trong nhà'
+  const mapSrc = 'https://www.openstreetmap.org/export/embed.html?bbox=105.805%2C21.015%2C105.845%2C21.045&layer=mapnik&marker=21.030%2C105.825'
+  const priceRules = activeCourt.priceRules || []
+  const slots = availability?.slots || []
+
+  useEffect(() => {
+    async function fetchCourtDetail() {
+      setDetailLoading(true)
+      setDetailMessage('')
+
+      try {
+        const [detailResponse, availabilityResponse] = await Promise.all([
+          fetch(`${API_URL}/courts/${court.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_URL}/courts/${court.id}/availability?date=${selectedDate}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ])
+
+        const detailData = await detailResponse.json()
+        const availabilityData = await availabilityResponse.json()
+
+        if (!detailResponse.ok) {
+          throw new Error(detailData.message || 'Không thể tải chi tiết sân.')
+        }
+
+        if (!availabilityResponse.ok) {
+          throw new Error(availabilityData.message || 'Không thể tải lịch trống.')
+        }
+
+        setCourtDetail(detailData.court)
+        setAvailability(availabilityData.availability)
+      } catch (error) {
+        setDetailMessage(error.message)
+      } finally {
+        setDetailLoading(false)
+      }
+    }
+
+    fetchCourtDetail()
+  }, [court.id, token, selectedDate])
+
+  return (
+    <section className="court-detail-page" aria-label="Chi tiết sân pickleball">
+      <nav className="breadcrumb" aria-label="Đường dẫn">
+        <button type="button" onClick={onBack}>Trang chủ</button>
+        <span>/</span>
+        <button type="button" onClick={onBack}>Tìm sân</button>
+        <span>/</span>
+        <strong>{activeCourt.name}</strong>
+      </nav>
+
+      <img className="court-detail-hero" src={image} alt={`${activeCourt.name} - ${typeLabel}`} />
+
+      <div className="court-detail-layout">
+        <div className="court-detail-main">
+          {detailMessage && <p className="message error">{detailMessage}</p>}
+          {detailLoading && <p className="message">Đang tải chi tiết sân từ database...</p>}
+
+          <article className="detail-card court-overview-card">
+            <div className="overview-actions">
+              <span className="sport-chip">Pickleball</span>
+              <div>
+                <button type="button" className="secondary-button small">Lưu</button>
+                <button type="button" className="secondary-button small">Chia sẻ</button>
+              </div>
+            </div>
+            <h1>{activeCourt.name}</h1>
+            <p className="detail-address">{activeCourt.address}</p>
+            <div className="court-meta-row">
+              <span>Mã sân: <strong>{activeCourt.code}</strong></span>
+              <span>Mở cửa: <strong>{activeCourt.hours}</strong></span>
+              <span>Hotline: <strong>{activeCourt.hotline}</strong></span>
+              <span>Loại sân: <strong>{typeLabel}</strong></span>
+              <span className="status-text">{activeCourt.statusLabel || activeCourt.status}</span>
+            </div>
+            <div className="detail-divider" />
+            <h2>Giới thiệu</h2>
+            <p>{activeCourt.intro}</p>
+            <h2>Thông tin sân</h2>
+            <div className="subcourt-list">
+              <span>{activeCourt.code} - {activeCourt.name} <small>({activeCourt.surfaceType})</small></span>
+              <span>Giá cơ bản <small>{formatMoney(activeCourt.basePricePerHour)}/h</small></span>
+              {activeCourt.facilities?.map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </div>
+          </article>
+
+          <article className="detail-card">
+            <h2>Bảng giá thuê sân</h2>
+            <div className="price-table" role="table" aria-label="Bảng giá thuê sân">
+              <div className="price-row header" role="row">
+                <span>Khung giờ</span>
+                <span>Áp dụng</span>
+                <span>Giá</span>
+              </div>
+              {priceRules.map((row) => (
+                <div className="price-row" role="row" key={row.id}>
+                  <span>{row.startTime}-{row.endTime}</span>
+                  <strong>{row.dayOfWeek ? `Thứ ${row.dayOfWeek}` : 'Tất cả ngày'}</strong>
+                  <strong>{formatMoney(row.pricePerSlot)}/slot</strong>
+                </div>
+              ))}
+            </div>
+            <p className="muted-note">Giá áp dụng theo từng khung giờ và đã bao gồm phí thuê sân.</p>
+          </article>
+
+          <article className="detail-card">
+            <h2>Lịch trống hôm nay ({selectedDate})</h2>
+            <div className="slot-board">
+              <div className="slot-group">
+                <div className="slot-heading">
+                  <strong>{activeCourt.code} - {activeCourt.name}</strong>
+                  <span>{formatMoney(activeCourt.basePricePerHour)}/h</span>
+                </div>
+                <div className="time-grid">
+                  {slots.map((slot) => (
+                    <button type="button" className={slot.status === 'booked' ? 'booked' : ''} key={`${slot.startTime}-${slot.endTime}`} disabled={slot.status === 'booked'}>
+                      {slot.startTime}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="slot-legend">
+              <span><i className="available-dot" />Trống</span>
+              <span><i />Đã đặt</span>
+            </div>
+            <button type="button" className="primary-button wide">Đặt sân ngay</button>
+          </article>
+
+          <article className="detail-card">
+            <h2>Vị trí</h2>
+            <iframe
+              title={`Bản đồ ${activeCourt.name}`}
+              className="court-map"
+              src={mapSrc}
+              loading="lazy"
+            />
+            <div className="map-actions">
+              <a className="secondary-button small" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeCourt.locationQuery)}`} target="_blank" rel="noreferrer">Chỉ đường</a>
+              <a className="secondary-button small" href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(activeCourt.locationQuery)}`} target="_blank" rel="noreferrer">Xem bản đồ</a>
+            </div>
+          </article>
+        </div>
+
+        <aside className="court-detail-side" aria-label="Đặt sân nhanh">
+          <BookingSummaryCard court={activeCourt} />
+          <article className="detail-card contact-card">
+            <h2>Thông tin liên hệ</h2>
+            <strong>{activeCourt.hotline}</strong>
+            <span>{activeCourt.address}</span>
+            <span>{activeCourt.hours} hằng ngày</span>
+            <button type="button" className="secondary-button wide">Liên hệ chủ sân</button>
+          </article>
+        </aside>
+      </div>
+    </section>
+  )
+}
+
+function BookingSummaryCard({ court }) {
+  return (
+    <article className="detail-card booking-summary">
+      <h2>{court.count} sân</h2>
+      <dl>
+        <div><dt>Ngày đặt</dt><dd>Chọn ngày</dd></div>
+        <div><dt>Giờ đặt</dt><dd>Chọn giờ</dd></div>
+        <div><dt>Thời lượng</dt><dd>1 giờ</dd></div>
+      </dl>
+      <button type="button" className="primary-button wide">Đặt sân ngay</button>
+      <button type="button" className="secondary-button wide">Gọi: {court.hotline}</button>
+      <p>Đặt cọc an toàn - Hủy trước 2h miễn phí</p>
+    </article>
+  )
+}
+
+function CourtCard({ court, view, onDetail }) {
   const isOutdoor = court.type === 'outdoor'
   const image = isOutdoor ? courtOutdoor : courtIndoor
   const typeLabel = isOutdoor ? 'Sân ngoài trời' : 'Sân trong nhà'
@@ -839,7 +1064,7 @@ function CourtCard({ court, view }) {
       </div>
       {view === 'list' && (
         <div className="court-actions">
-          <button type="button" className="secondary-button small">Chi tiết</button>
+          <button type="button" className="secondary-button small" onClick={() => onDetail(court)}>Chi tiết</button>
           <button type="button" className="primary-button small">Đặt sân</button>
         </div>
       )}

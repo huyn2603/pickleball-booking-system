@@ -892,6 +892,327 @@ select:focus {
   line-height: 1;
 }
 
+.court-detail-page {
+  min-height: calc(100svh - 100px);
+  padding: 24px 7vw 70px;
+  background: #f6f8fa;
+}
+
+.breadcrumb {
+  width: min(1320px, 100%);
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.breadcrumb button {
+  border: 0;
+  background: transparent;
+  color: var(--success);
+  font-weight: 900;
+}
+
+.breadcrumb strong {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.court-detail-hero {
+  width: min(1320px, 100%);
+  height: clamp(260px, 30vw, 410px);
+  display: block;
+  margin: 0 auto 24px;
+  border-radius: 18px;
+  object-fit: cover;
+  background: var(--soft-cloud);
+}
+
+.court-detail-layout {
+  width: min(1320px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 424px);
+  gap: 24px;
+  align-items: start;
+}
+
+.court-detail-main,
+.court-detail-side,
+.slot-board,
+.contact-card {
+  display: grid;
+  gap: 20px;
+}
+
+.court-detail-side {
+  position: sticky;
+  top: 92px;
+}
+
+.detail-card {
+  border: 1px solid #dfe3e8;
+  border-radius: 18px;
+  padding: 28px;
+  background: var(--canvas);
+  box-shadow: 0 2px 8px rgba(17, 17, 17, 0.08);
+}
+
+.detail-card h1,
+.detail-card h2,
+.booking-summary h2 {
+  margin: 0;
+  color: #172033;
+}
+
+.court-overview-card h1 {
+  margin-top: 18px;
+  font-size: clamp(30px, 4vw, 48px);
+  line-height: 1.02;
+}
+
+.overview-actions,
+.overview-actions div,
+.court-meta-row,
+.subcourt-list,
+.slot-heading,
+.slot-legend,
+.map-actions {
+  display: flex;
+  align-items: center;
+}
+
+.overview-actions,
+.slot-heading {
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.overview-actions div,
+.court-meta-row,
+.subcourt-list,
+.slot-legend,
+.map-actions {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sport-chip {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: #dcfbe6;
+  color: #172033;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.detail-address,
+.court-overview-card p,
+.muted-note,
+.booking-summary p,
+.contact-card span {
+  color: #586475;
+  line-height: 1.6;
+}
+
+.detail-address {
+  margin: 12px 0 0;
+  font-weight: 800;
+}
+
+.court-meta-row {
+  margin-top: 18px;
+  color: #4b5563;
+  font-weight: 800;
+}
+
+.court-meta-row strong,
+.status-text,
+.price-row strong,
+.slot-heading span,
+.booking-summary h2,
+.contact-card strong {
+  color: var(--success);
+}
+
+.detail-divider {
+  height: 1px;
+  margin: 22px 0;
+  background: #edf0f2;
+}
+
+.court-overview-card h2,
+.detail-card > h2 {
+  margin-bottom: 14px;
+  font-size: 18px;
+}
+
+.subcourt-list span {
+  min-height: 38px;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  padding: 9px 14px;
+  background: #f9fafb;
+  color: #172033;
+  font-weight: 800;
+}
+
+.subcourt-list small {
+  color: #8a94a3;
+}
+
+.price-table {
+  display: grid;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.price-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  min-height: 44px;
+  align-items: center;
+  border-bottom: 1px solid #edf0f2;
+  padding: 0 16px;
+  color: #172033;
+}
+
+.price-row.header {
+  min-height: 42px;
+  border-bottom: 0;
+  background: var(--success-bright);
+  color: var(--canvas);
+  font-weight: 900;
+}
+
+.muted-note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.slot-group {
+  display: grid;
+  gap: 12px;
+}
+
+.slot-heading {
+  color: #172033;
+}
+
+.time-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.time-grid button {
+  min-height: 38px;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  background: var(--canvas);
+  color: #172033;
+  font-weight: 800;
+}
+
+.time-grid button.booked {
+  background: #eef1f4;
+  color: #9aa3af;
+  cursor: not-allowed;
+}
+
+.slot-legend {
+  margin: 6px 0 16px;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.slot-legend i {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  border-radius: 3px;
+  margin-right: 7px;
+  background: #dfe3e8;
+}
+
+.slot-legend .available-dot {
+  background: var(--success-bright);
+}
+
+.court-map {
+  width: 100%;
+  height: 260px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--soft-cloud);
+}
+
+.map-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.booking-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.booking-summary h2 {
+  font-size: 34px;
+}
+
+.booking-summary dl {
+  display: grid;
+  gap: 0;
+  margin: 8px 0 4px;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f9fafb;
+}
+
+.booking-summary dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #edf0f2;
+  padding: 9px 0;
+}
+
+.booking-summary dl div:last-child {
+  border-bottom: 0;
+}
+
+.booking-summary dt {
+  color: #586475;
+}
+
+.booking-summary dd {
+  margin: 0;
+  color: #172033;
+  font-weight: 900;
+}
+
+.booking-summary p {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.contact-card .secondary-button {
+  margin-top: 10px;
+}
+
 .owner-court-form form {
   margin-top: 18px;
   display: grid;
@@ -1052,6 +1373,15 @@ select:focus {
   .court-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .court-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .court-detail-side {
+    position: static;
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1131,5 +1461,34 @@ select:focus {
 
   .court-actions {
     margin: 0 18px 8px;
+  }
+
+  .court-detail-page {
+    padding: 14px 14px 44px;
+  }
+
+  .court-detail-hero {
+    height: 240px;
+    border-radius: 14px;
+  }
+
+  .court-detail-side,
+  .time-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-card {
+    padding: 20px;
+  }
+
+  .overview-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .price-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 12px;
   }
 }

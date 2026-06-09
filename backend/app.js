@@ -1,6 +1,7 @@
 const cors = require('cors');
 const express = require('express');
 const authRoutes = require('./src/routes/authRoutes');
+const courtRoutes = require('./src/routes/courtRoutes');
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/courts', courtRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Khong tim thay API.' });
