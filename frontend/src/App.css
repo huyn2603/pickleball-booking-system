@@ -472,6 +472,38 @@ select:focus {
   gap: 18px;
 }
 
+.owner-workspace {
+  width: min(1220px, calc(100% - 48px));
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+
+.owner-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.owner-tabs button {
+  min-height: 48px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.owner-tabs button.active {
+  border-color: var(--success);
+  background: var(--success);
+  color: #fff;
+}
+
+.management-grid.two-col {
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+}
+
 .staff-stat-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1540,6 +1572,7 @@ select:focus {
   .search-panel,
   .identity-list,
   .management-grid,
+  .management-grid.two-col,
   .category-strip {
     grid-template-columns: 1fr 1fr;
   }
@@ -1611,6 +1644,7 @@ select:focus {
   .search-panel,
   .identity-list,
   .management-grid,
+  .management-grid.two-col,
   .category-strip {
     grid-template-columns: 1fr;
   }
@@ -1618,8 +1652,13 @@ select:focus {
   .search-panel,
   .category-strip,
   .management-grid,
+  .owner-workspace,
   .staff-workspace {
     width: calc(100% - 28px);
+  }
+
+  .owner-tabs {
+    grid-template-columns: 1fr;
   }
 
   .staff-stat-grid,

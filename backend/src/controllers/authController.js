@@ -157,6 +157,9 @@ function me(req, res) {
 async function updateMe(req, res) {
   try {
     const { fullName, email, phone } = req.body;
+    const avatarUrl = Object.prototype.hasOwnProperty.call(req.body, 'avatarUrl')
+      ? req.body.avatarUrl
+      : req.user.avatarUrl;
     const cleanEmail = normalizeEmail(email);
 
     if (!fullName || !cleanEmail || !phone) {
@@ -176,6 +179,7 @@ async function updateMe(req, res) {
       fullName: String(fullName).trim(),
       email: cleanEmail,
       phone: String(phone).trim(),
+      avatarUrl: avatarUrl ? String(avatarUrl) : null,
     });
 
     return res.json({ success: true, user: User.toSafeObject(user) });
@@ -211,6 +215,57 @@ async function listManagedAccounts(req, res) {
   } catch (error) {
     console.error('List accounts error:', error);
     return sendError(res, 500, 'Loi may chu khi tai danh sach tai khoan.');
+  }
+}
+
+async function createManagedAccount(req, res) {
+  try {
+    if (!canUse(req, res, ['Admin', 'Owner'])) {
+      return null;
+    }
+
+    const managedRoles = manageableRolesFor(req.user.role);
+    const role = managedRoles.includes(req.body?.role) ? req.body.role : 'Staff';
+    if (!managedRoles.includes(role)) {
+      return sendError(res, 403, 'Ban khong co quyen tao vai tro nay.');
+    }
+
+    const fullName = String(req.body?.fullName || '').trim();
+    const cleanEmail = normalizeEmail(req.body?.email);
+    const phone = String(req.body?.phone || '').trim();
+    const password = String(req.body?.password || '123456');
+
+    if (!fullName || !cleanEmail || !phone || !password) {
+      return sendError(res, 400, 'Vui long nhap day du ho ten, email, so dien thoai va mat khau.');
+    }
+
+    if (!isGmail(cleanEmail)) {
+      return sendError(res, 400, 'Email phai co duoi @gmail.com.');
+    }
+
+    if (password.length < 6) {
+      return sendError(res, 400, 'Mat khau phai co it nhat 6 ky tu.');
+    }
+
+    const existed = await User.findByEmail(cleanEmail);
+    if (existed) {
+      return sendError(res, 409, 'Email da duoc su dung.');
+    }
+
+    const user = await User.create({
+      fullName,
+      email: cleanEmail,
+      phone,
+      password: storePassword(password),
+      avatarUrl: req.body?.avatarUrl ? String(req.body.avatarUrl) : null,
+      role,
+      status: 'Active',
+    });
+
+    return res.status(201).json({ success: true, user: User.toSafeObject(user) });
+  } catch (error) {
+    console.error('Create managed account error:', error);
+    return sendError(res, 500, 'Loi may chu khi tao tai khoan.');
   }
 }
 
@@ -256,6 +311,7 @@ async function deleteManagedAccount(req, res) {
 }
 
 module.exports = {
+  createManagedAccount,
   deleteManagedAccount,
   forgotPassword,
   getPlainPassword,

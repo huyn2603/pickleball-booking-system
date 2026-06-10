@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import heroImage from './assets/pickleball-hero.png'
 import defaultAvatar from './assets/default-avatar.jpg'
 import logoutIcon from './assets/logout-icon.png'
 import courtOutdoor from './assets/court-outdoor.webp'
@@ -83,12 +82,12 @@ function readStoredAvatar(user) {
     return defaultAvatar
   }
 
-  return localStorage.getItem(getAvatarKey(user)) || defaultAvatar
+  return user.avatarUrl || localStorage.getItem(getAvatarKey(user)) || defaultAvatar
 }
 
 function App() {
   const [session, setSession] = useState(readStoredSession)
-  const [page, setPage] = useState(() => (readStoredSession() ? 'dashboard' : 'home'))
+  const [page, setPage] = useState('home')
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
   const [avatarSrc, setAvatarSrc] = useState(() => readStoredAvatar(readStoredSession()?.user))
   const [courts, setCourts] = useState([])
@@ -97,12 +96,15 @@ function App() {
   const [courtFilter, setCourtFilter] = useState('all')
   const [courtPage, setCourtPage] = useState(1)
   const [selectedCourtId, setSelectedCourtId] = useState(null)
+  const [ownerView, setOwnerView] = useState('courts')
+  const [editingCourtId, setEditingCourtId] = useState(null)
   const [mode, setMode] = useState('login')
   const [editingProfile, setEditingProfile] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('')
   const [accounts, setAccounts] = useState(null)
+  const [accountsLoading, setAccountsLoading] = useState(false)
   const [staffDashboard, setStaffDashboard] = useState({ date: getTodayString(), bookings: [], addons: [] })
   const [staffLoading, setStaffLoading] = useState(false)
   const [form, setForm] = useState({
@@ -113,10 +115,20 @@ function App() {
     confirmPassword: '',
   })
   const [courtForm, setCourtForm] = useState({
+    code: '',
     name: '',
-    district: 'Tây Hồ',
+    address: '',
     type: 'outdoor',
-    count: 1,
+    surfaceType: 'standard',
+    basePricePerHour: 160000,
+    facilities: 'lighting, parking',
+    status: 'available',
+  })
+  const [staffForm, setStaffForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    password: '123456',
   })
 
   const isRegister = mode === 'register'
@@ -160,6 +172,27 @@ function App() {
       ...current,
       [event.target.name]: event.target.value,
     }))
+  }
+
+  function updateStaffField(event) {
+    setStaffForm((current) => ({
+      ...current,
+      [event.target.name]: event.target.value,
+    }))
+  }
+
+  function resetCourtForm() {
+    setEditingCourtId(null)
+    setCourtForm({
+      code: '',
+      name: '',
+      address: '',
+      type: 'outdoor',
+      surfaceType: 'standard',
+      basePricePerHour: 160000,
+      facilities: 'lighting, parking',
+      status: 'available',
+    })
   }
 
   function resetNotice() {
@@ -224,10 +257,123 @@ function App() {
     setPage('court-detail')
   }
 
-  function addCourt(event) {
+  // eslint-disable-next-line no-unused-vars
+  function addCourtPlaceholder(event) {
     event.preventDefault()
     setMessage('Danh sách sân hiện lấy từ database. Chức năng thêm sân cần API quản lý sân riêng.')
     setMessageType('error')
+  }
+
+  async function addCourt(event) {
+    event.preventDefault()
+    setLoading(true)
+    resetNotice()
+
+    try {
+      const response = await fetch(`${API_URL}/courts${editingCourtId ? `/${editingCourtId}` : ''}`, {
+        method: editingCourtId ? 'PATCH' : 'POST',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...courtForm,
+          basePricePerHour: Number(courtForm.basePricePerHour || 0),
+        }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể lưu sân.')
+      }
+
+      setMessage(editingCourtId ? 'Đã sửa sân.' : 'Đã thêm sân.')
+      setMessageType('success')
+      resetCourtForm()
+      await fetchCourts()
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function startEditCourt(court) {
+    setEditingCourtId(court.id)
+    setOwnerView('courts')
+    setCourtForm({
+      code: court.code || '',
+      name: court.name || '',
+      address: court.address || '',
+      type: court.type || 'outdoor',
+      surfaceType: court.surfaceType || 'standard',
+      basePricePerHour: court.basePricePerHour || 160000,
+      facilities: Array.isArray(court.facilities) ? court.facilities.join(', ') : '',
+      status: court.status || 'available',
+    })
+  }
+
+  async function deleteCourt(court) {
+    if (!window.confirm(`Bạn có chắc chắn xóa sân ${court.code} không?`)) {
+      return
+    }
+
+    setLoading(true)
+    resetNotice()
+
+    try {
+      const response = await fetch(`${API_URL}/courts/${court.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.token}` },
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể xóa sân.')
+      }
+
+      setMessage('Đã xóa sân.')
+      setMessageType('success')
+      await fetchCourts()
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function addStaff(event) {
+    event.preventDefault()
+    setLoading(true)
+    resetNotice()
+
+    try {
+      const response = await fetch(`${API_URL}/auth/accounts`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ...staffForm, role: 'Staff' }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể thêm nhân viên.')
+      }
+
+      setStaffForm({ fullName: '', email: '', phone: '', password: '123456' })
+      setMessage('Đã thêm nhân viên.')
+      setMessageType('success')
+      await fetchAccounts()
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setLoading(false)
+    }
   }
 
   function getPageItems() {
@@ -248,7 +394,7 @@ function App() {
 
   function showPersonalInfo() {
     setPage('dashboard')
-    setEditingProfile(true)
+    setEditingProfile(false)
     setAvatarMenuOpen(false)
     resetNotice()
     setForm((current) => ({
@@ -293,6 +439,12 @@ function App() {
   }
 
   async function fetchAccounts() {
+    if (!session?.token) {
+      return
+    }
+
+    setAccountsLoading(true)
+
     try {
       const response = await fetch(`${API_URL}/auth/accounts`, {
         headers: { Authorization: `Bearer ${session.token}` },
@@ -303,10 +455,12 @@ function App() {
         throw new Error(data.message || 'Không thể tải danh sách tài khoản.')
       }
 
-      setAccounts(data.accounts)
+      setAccounts(data.accounts || { banned: [], byRole: {} })
     } catch (error) {
       setMessage(error.message)
       setMessageType('error')
+    } finally {
+      setAccountsLoading(false)
     }
   }
 
@@ -431,7 +585,7 @@ function App() {
       }
 
       persistSession(data)
-      setPage('dashboard')
+      setPage('home')
       setMessage(isRegister ? 'Đăng ký thành công.' : 'Đăng nhập thành công.')
       setMessageType('success')
       setForm({ fullName: '', email: '', phone: '', password: '', confirmPassword: '' })
@@ -573,12 +727,43 @@ function App() {
     }
 
     const reader = new FileReader()
-    reader.onload = () => {
+    reader.onload = async () => {
       const nextAvatar = String(reader.result || defaultAvatar)
-      localStorage.setItem(getAvatarKey(session.user), nextAvatar)
-      setAvatarSrc(nextAvatar)
-      setMessage('Avatar đã được cập nhật.')
-      setMessageType('success')
+
+      try {
+        setLoading(true)
+        resetNotice()
+
+        const response = await fetch(`${API_URL}/auth/me`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            fullName: session.user.fullName,
+            email: session.user.email,
+            phone: session.user.phone,
+            avatarUrl: nextAvatar,
+          }),
+        })
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Không thể cập nhật avatar.')
+        }
+
+        persistSession({ token: session.token, user: data.user })
+        localStorage.setItem(getAvatarKey(data.user), nextAvatar)
+        setAvatarSrc(nextAvatar)
+        setMessage('Avatar đã được lưu vào database.')
+        setMessageType('success')
+      } catch (error) {
+        setMessage(error.message)
+        setMessageType('error')
+      } finally {
+        setLoading(false)
+      }
     }
     reader.readAsDataURL(file)
   }
@@ -885,8 +1070,31 @@ function App() {
             <ProfileCard user={session.user} />
           )}
 
-          {role === 'Admin' && <AdminAccounts accounts={accounts} loading={loading} onManage={manageAccount} />}
-          {role === 'Owner' && <OwnerTools accounts={accounts} loading={loading} onManage={manageAccount} courtForm={courtForm} onCourtField={updateCourtField} onAddCourt={addCourt} />}
+          {role === 'Admin' && <AdminAccounts accounts={accounts} accountsLoading={accountsLoading} loading={loading} onManage={manageAccount} />}
+          {role === 'Owner' && (
+            <OwnerTools
+              accounts={accounts}
+              accountsLoading={accountsLoading}
+              loading={loading}
+              courts={courts}
+              courtsLoading={courtsLoading}
+              ownerView={ownerView}
+              onOwnerView={setOwnerView}
+              onManage={manageAccount}
+              onRefresh={fetchAccounts}
+              onRefreshCourts={fetchCourts}
+              courtForm={courtForm}
+              editingCourtId={editingCourtId}
+              onCourtField={updateCourtField}
+              onAddCourt={addCourt}
+              onEditCourt={startEditCourt}
+              onDeleteCourt={deleteCourt}
+              onCancelCourtEdit={resetCourtForm}
+              staffForm={staffForm}
+              onStaffField={updateStaffField}
+              onAddStaff={addStaff}
+            />
+          )}
           {role === 'Staff' && (
             <StaffToolsPanel
               dashboard={staffDashboard}
@@ -926,18 +1134,19 @@ function ProfileCard({ user }) {
   )
 }
 
-function AdminAccounts({ accounts, loading, onManage }) {
+function AdminAccounts({ accounts, accountsLoading, loading, onManage }) {
   const roles = ['Customer', 'Owner', 'Staff']
 
   return (
     <section className="management-grid" aria-label="Admin quản lý tài khoản">
-      <AccountGroup title="Tài khoản bị ban" users={accounts?.banned || []} empty="Chưa có tài khoản bị ban." />
+      <AccountGroup title="Tài khoản bị ban" users={accounts?.banned || []} empty="Chưa có tài khoản bị ban." loading={accountsLoading} />
       {roles.map((role) => (
         <AccountGroup
           key={role}
           title={`Danh sách ${roleLabels[role]}`}
           users={accounts?.byRole?.[role] || []}
           empty={`Chưa có ${roleLabels[role]}.`}
+          loading={accountsLoading}
           actions={role === 'Customer' ? { loading, onManage } : null}
         />
       ))}
@@ -945,7 +1154,8 @@ function AdminAccounts({ accounts, loading, onManage }) {
   )
 }
 
-function OwnerTools({ accounts, loading, onManage, courtForm, onCourtField, onAddCourt }) {
+// eslint-disable-next-line no-unused-vars
+function LegacyOwnerTools({ accounts, accountsLoading, loading, onManage, onRefresh, courtForm, onCourtField, onAddCourt }) {
   return (
     <section className="management-grid" aria-label="Owner quản lý Customer">
       <article className="feature-panel owner-court-form">
@@ -981,21 +1191,194 @@ function OwnerTools({ accounts, loading, onManage, courtForm, onCourtField, onAd
         </form>
       </article>
       <AccountGroup
-        title="Danh sách Customer"
+        title="Danh sách Customer từ database"
         users={accounts?.byRole?.Customer || []}
-        empty="Chưa có Customer để quản lý."
+        empty="Database chưa có Customer để quản lý."
+        loading={accountsLoading}
+        headerAction={<button type="button" className="secondary-button small" onClick={onRefresh} disabled={accountsLoading}>Tải lại</button>}
         actions={{ loading, onManage }}
       />
       <AccountGroup
-        title="Danh sách Staff"
+        title="Danh sách Staff từ database"
         users={accounts?.byRole?.Staff || []}
-        empty="Chưa có Staff để quản lý."
+        empty="Database chưa có Staff để quản lý."
+        loading={accountsLoading}
+        headerAction={<button type="button" className="secondary-button small" onClick={onRefresh} disabled={accountsLoading}>Tải lại</button>}
         actions={{ loading, onManage }}
       />
     </section>
   )
 }
 
+function OwnerTools({
+  accounts,
+  accountsLoading,
+  loading,
+  courts,
+  courtsLoading,
+  ownerView,
+  onOwnerView,
+  onManage,
+  onRefresh,
+  onRefreshCourts,
+  courtForm,
+  editingCourtId,
+  onCourtField,
+  onAddCourt,
+  onEditCourt,
+  onDeleteCourt,
+  onCancelCourtEdit,
+  staffForm,
+  onStaffField,
+  onAddStaff,
+}) {
+  const ownerTabs = [
+    { id: 'courts', label: 'Xem danh sách sân' },
+    { id: 'customers', label: 'Xem danh sách khách hàng' },
+    { id: 'staff', label: 'Xem danh sách nhân viên' },
+  ]
+
+  return (
+    <section className="owner-workspace" aria-label="Owner quản lý dữ liệu">
+      <div className="owner-tabs" role="tablist" aria-label="Chọn danh sách quản lý">
+        {ownerTabs.map((tab) => (
+          <button type="button" key={tab.id} className={ownerView === tab.id ? 'active' : ''} onClick={() => onOwnerView(tab.id)}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {ownerView === 'courts' && (
+        <section className="management-grid two-col" aria-label="Danh sách sân">
+          <CourtEditor courtForm={courtForm} editingCourtId={editingCourtId} loading={loading} onCourtField={onCourtField} onAddCourt={onAddCourt} onCancelCourtEdit={onCancelCourtEdit} />
+          <CourtManagementList courts={courts} loading={loading} courtsLoading={courtsLoading} onRefresh={onRefreshCourts} onEditCourt={onEditCourt} onDeleteCourt={onDeleteCourt} />
+        </section>
+      )}
+
+      {ownerView === 'customers' && (
+        <section className="management-grid" aria-label="Danh sách khách hàng">
+          <AccountGroup
+            title="Danh sách khách hàng"
+            users={accounts?.byRole?.Customer || []}
+            empty="Database chưa có khách hàng."
+            loading={accountsLoading}
+            headerAction={<button type="button" className="secondary-button small" onClick={onRefresh} disabled={accountsLoading}>Tải lại</button>}
+            actions={{ loading, onManage, allowBan: true, allowDelete: true }}
+          />
+        </section>
+      )}
+
+      {ownerView === 'staff' && (
+        <section className="management-grid two-col" aria-label="Danh sách nhân viên">
+          <StaffEditor staffForm={staffForm} loading={loading} onStaffField={onStaffField} onAddStaff={onAddStaff} />
+          <AccountGroup
+            title="Danh sách nhân viên"
+            users={accounts?.byRole?.Staff || []}
+            empty="Database chưa có nhân viên."
+            loading={accountsLoading}
+            headerAction={<button type="button" className="secondary-button small" onClick={onRefresh} disabled={accountsLoading}>Tải lại</button>}
+            actions={{ loading, onManage, allowBan: false, allowDelete: true }}
+          />
+        </section>
+      )}
+    </section>
+  )
+}
+
+function CourtEditor({ courtForm, editingCourtId, loading, onCourtField, onAddCourt, onCancelCourtEdit }) {
+  return (
+    <article className="feature-panel owner-court-form">
+      <div className="panel-heading">
+        <h2>{editingCourtId ? 'Sửa sân' : 'Thêm sân'}</h2>
+        <span>Owner</span>
+      </div>
+      <form onSubmit={onAddCourt}>
+        <Field name="code" label="Mã sân" value={courtForm.code} onChange={onCourtField} placeholder="A3" />
+        <Field name="name" label="Tên sân" value={courtForm.name} onChange={onCourtField} placeholder="Sân A3" />
+        <Field name="address" label="Địa chỉ sân" value={courtForm.address} onChange={onCourtField} placeholder="12 Trịnh Công Sơn, Tây Hồ, Hà Nội" />
+        <label>
+          Loại sân
+          <select name="type" value={courtForm.type} onChange={onCourtField}>
+            <option value="outdoor">Sân ngoài trời</option>
+            <option value="indoor">Sân trong nhà</option>
+          </select>
+        </label>
+        <label>
+          Mặt sân
+          <select name="surfaceType" value={courtForm.surfaceType} onChange={onCourtField}>
+            <option value="standard">Tiêu chuẩn</option>
+            <option value="premium">Premium</option>
+            <option value="synthetic">Synthetic</option>
+            <option value="concrete">Concrete</option>
+            <option value="wood">Wood</option>
+          </select>
+        </label>
+        <Field name="basePricePerHour" type="number" min="0" label="Giá mỗi giờ" value={courtForm.basePricePerHour} onChange={onCourtField} />
+        <Field name="facilities" label="Tiện ích" value={courtForm.facilities} onChange={onCourtField} placeholder="lighting, parking" />
+        <label>
+          Trạng thái
+          <select name="status" value={courtForm.status} onChange={onCourtField}>
+            <option value="available">Đang hoạt động</option>
+            <option value="maintenance">Bảo trì</option>
+            <option value="inactive">Tạm ngưng</option>
+          </select>
+        </label>
+        <div className="row-actions">
+          <button type="submit" className="primary-button" disabled={loading}>{editingCourtId ? 'Lưu sân' : 'Thêm sân'}</button>
+          {editingCourtId && <button type="button" className="secondary-button" onClick={onCancelCourtEdit}>Hủy</button>}
+        </div>
+      </form>
+    </article>
+  )
+}
+
+function CourtManagementList({ courts, loading, courtsLoading, onRefresh, onEditCourt, onDeleteCourt }) {
+  return (
+    <article className="account-group">
+      <div className="panel-heading">
+        <h2>Danh sách sân</h2>
+        <button type="button" className="secondary-button small" onClick={onRefresh} disabled={courtsLoading}>Tải lại</button>
+      </div>
+      <div className="account-list">
+        {courtsLoading && <p className="empty-text">Đang tải sân từ database...</p>}
+        {!courtsLoading && courts.length === 0 && <p className="empty-text">Database chưa có sân.</p>}
+        {courts.map((court) => (
+          <div className="account-row" key={court.id}>
+            <div>
+              <strong>{court.code} - {court.name}</strong>
+              <span>{court.address}</span>
+              <small>{court.type === 'outdoor' ? 'Sân ngoài trời' : 'Sân trong nhà'} - {court.statusLabel || court.status}</small>
+            </div>
+            <div className="row-actions">
+              <button type="button" className="secondary-button small" onClick={() => onEditCourt(court)} disabled={loading}>Sửa</button>
+              <button type="button" className="danger-button small" onClick={() => onDeleteCourt(court)} disabled={loading}>Xóa</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function StaffEditor({ staffForm, loading, onStaffField, onAddStaff }) {
+  return (
+    <article className="feature-panel">
+      <div className="panel-heading">
+        <h2>Thêm nhân viên</h2>
+        <span>Staff</span>
+      </div>
+      <form onSubmit={onAddStaff}>
+        <Field name="fullName" label="Họ tên" value={staffForm.fullName} onChange={onStaffField} placeholder="Nguyễn Văn A" />
+        <Field name="email" type="email" label="Email" value={staffForm.email} onChange={onStaffField} placeholder="pickleball.staff11@gmail.com" />
+        <Field name="phone" label="Số điện thoại" value={staffForm.phone} onChange={onStaffField} placeholder="0911000011" />
+        <Field name="password" type="password" minLength="6" label="Mật khẩu" value={staffForm.password} onChange={onStaffField} />
+        <button type="submit" className="primary-button" disabled={loading}>Thêm nhân viên</button>
+      </form>
+    </article>
+  )
+}
+
+// eslint-disable-next-line no-unused-vars
 function StaffTools() {
   return (
     <section className="management-grid" aria-label="Staff quản lý vận hành">
@@ -1375,15 +1758,19 @@ function CourtCard({ court, view, onDetail }) {
   )
 }
 
-function AccountGroup({ title, users, empty, actions }) {
+function AccountGroup({ title, users, empty, loading = false, headerAction, actions }) {
+  const showBan = actions && actions.allowBan !== false
+  const showDelete = actions && actions.allowDelete !== false
+
   return (
     <article className="account-group">
       <div className="panel-heading">
         <h2>{title}</h2>
-        <span>{users.length}</span>
+        {headerAction || <span>{loading ? 'DB' : users.length}</span>}
       </div>
       <div className="account-list">
-        {users.length === 0 && <p className="empty-text">{empty}</p>}
+        {loading && <p className="empty-text">Đang tải danh sách từ database...</p>}
+        {!loading && users.length === 0 && <p className="empty-text">{empty}</p>}
         {users.map((user) => (
           <div className="account-row" key={user.id}>
             <div>
@@ -1393,17 +1780,21 @@ function AccountGroup({ title, users, empty, actions }) {
             </div>
             {actions && (
               <div className="row-actions">
-                <button
-                  type="button"
-                  className="secondary-button small"
-                  onClick={() => actions.onManage(user, user.status === 'Blocked' ? 'unban' : 'ban')}
-                  disabled={actions.loading}
-                >
-                  {user.status === 'Blocked' ? 'Mở ban' : 'Ban'}
-                </button>
-                <button type="button" className="danger-button small" onClick={() => actions.onManage(user, 'delete')} disabled={actions.loading}>
-                  Xóa
-                </button>
+                {showBan && (
+                  <button
+                    type="button"
+                    className="secondary-button small"
+                    onClick={() => actions.onManage(user, user.status === 'Blocked' ? 'unban' : 'ban')}
+                    disabled={actions.loading}
+                  >
+                    {user.status === 'Blocked' ? 'Mở ban' : 'Ban'}
+                  </button>
+                )}
+                {showDelete && (
+                  <button type="button" className="danger-button small" onClick={() => actions.onManage(user, 'delete')} disabled={actions.loading}>
+                    Xóa
+                  </button>
+                )}
               </div>
             )}
           </div>

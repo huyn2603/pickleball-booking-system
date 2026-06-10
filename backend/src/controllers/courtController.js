@@ -8,6 +8,49 @@ function isValidDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
 }
 
+function canManageCourts(req, res) {
+  if (!['Admin', 'Owner'].includes(req.user?.role)) {
+    sendError(res, 403, 'Ban khong co quyen quan ly san.');
+    return false;
+  }
+
+  return true;
+}
+
+function normalizeCourtPayload(body) {
+  const code = String(body?.code || '').trim().toUpperCase();
+  const name = String(body?.name || '').trim();
+  const address = String(body?.address || '').trim();
+  const type = body?.type === 'outdoor' ? 'outdoor' : 'indoor';
+  const surfaceType = ['standard', 'premium', 'synthetic', 'concrete', 'wood'].includes(body?.surfaceType)
+    ? body.surfaceType
+    : 'standard';
+  const status = ['available', 'maintenance', 'inactive'].includes(body?.status)
+    ? body.status
+    : 'available';
+  const basePricePerHour = Number(body?.basePricePerHour || 160000);
+  const facilities = Array.isArray(body?.facilities)
+    ? body.facilities.map((item) => String(item).trim()).filter(Boolean)
+    : String(body?.facilities || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  return { code, name, address, type, surfaceType, status, basePricePerHour, facilities };
+}
+
+function validateCourtPayload(payload) {
+  if (!payload.code || !payload.name || !payload.address) {
+    return 'Vui long nhap ma san, ten san va dia chi.';
+  }
+
+  if (!Number.isFinite(payload.basePricePerHour) || payload.basePricePerHour < 0) {
+    return 'Gia san phai la so khong am.';
+  }
+
+  return '';
+}
+
 async function listCourts(req, res) {
   try {
     const type = req.query.type || 'all';
@@ -56,8 +99,75 @@ async function courtAvailability(req, res) {
   }
 }
 
+async function createCourt(req, res) {
+  try {
+    if (!canManageCourts(req, res)) {
+      return null;
+    }
+
+    const payload = normalizeCourtPayload(req.body);
+    const error = validateCourtPayload(payload);
+    if (error) {
+      return sendError(res, 400, error);
+    }
+
+    const court = await Court.create(payload);
+    return res.status(201).json({ success: true, court });
+  } catch (error) {
+    console.error('Create court error:', error);
+    return sendError(res, 500, 'Loi may chu khi them san.');
+  }
+}
+
+async function updateCourt(req, res) {
+  try {
+    if (!canManageCourts(req, res)) {
+      return null;
+    }
+
+    const existing = await Court.findById(req.params.id);
+    if (!existing) {
+      return sendError(res, 404, 'Khong tim thay san.');
+    }
+
+    const payload = normalizeCourtPayload(req.body);
+    const error = validateCourtPayload(payload);
+    if (error) {
+      return sendError(res, 400, error);
+    }
+
+    const court = await Court.update(req.params.id, payload);
+    return res.json({ success: true, court });
+  } catch (error) {
+    console.error('Update court error:', error);
+    return sendError(res, 500, 'Loi may chu khi sua san.');
+  }
+}
+
+async function deleteCourt(req, res) {
+  try {
+    if (!canManageCourts(req, res)) {
+      return null;
+    }
+
+    const existing = await Court.findById(req.params.id);
+    if (!existing) {
+      return sendError(res, 404, 'Khong tim thay san.');
+    }
+
+    await Court.remove(req.params.id);
+    return res.json({ success: true, message: 'San da duoc xoa.' });
+  } catch (error) {
+    console.error('Delete court error:', error);
+    return sendError(res, 500, 'Loi may chu khi xoa san. Neu san da co booking, hay chuyen sang bao tri.');
+  }
+}
+
 module.exports = {
+  createCourt,
   courtAvailability,
   courtDetail,
+  deleteCourt,
   listCourts,
+  updateCourt,
 };
