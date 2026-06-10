@@ -14,6 +14,7 @@ router.post('/password', authController.getPlainPassword);
 router.get('/me', requireAuth, authController.me);
 router.put('/me', requireAuth, authController.updateMe);
 router.get('/accounts', requireAuth, authController.listManagedAccounts);
+router.post('/accounts', requireAuth, authController.createManagedAccount);
 router.patch('/accounts/:id/status', requireAuth, authController.updateManagedAccountStatus);
 router.delete('/accounts/:id', requireAuth, authController.deleteManagedAccount);
 

@@ -67,12 +67,12 @@ function mapCourt(row, settings = null) {
     statusLabel: statusLabel(row.status),
     count: 1,
     district: settings?.city || 'Ha Noi',
-    address: settings?.address || '',
+    address: row.address || settings?.address || '',
     hotline: settings?.phone || '',
     hours: settings ? `${settings.openTime} - ${settings.closeTime}` : '',
     venueName: settings?.venueName || '',
     intro: `${row.name} thuộc ${settings?.venueName || 'cơ sở pickleball'}, mặt sân ${row.surface_type}, trạng thái ${statusLabel(row.status).toLowerCase()}.`,
-    locationQuery: `${settings?.address || settings?.venueName || row.name}, ${settings?.city || 'Ha Noi'}`,
+    locationQuery: `${row.address || settings?.address || settings?.venueName || row.name}, ${settings?.city || 'Ha Noi'}`,
   };
 }
 
@@ -112,7 +112,7 @@ async function list({ type = 'all' } = {}) {
   }
 
   const rows = await query(
-    `SELECT id, code, name, court_type, surface_type, base_price_per_hour,
+    `SELECT id, code, name, address, court_type, surface_type, base_price_per_hour,
             peak_price_per_slot, off_peak_price_per_slot, facilities, status
      FROM courts
      ${typeClause}
@@ -129,7 +129,7 @@ async function list({ type = 'all' } = {}) {
 async function findById(id) {
   const settings = await getSettings();
   const rows = await query(
-    `SELECT id, code, name, court_type, surface_type, base_price_per_hour,
+    `SELECT id, code, name, address, court_type, surface_type, base_price_per_hour,
             peak_price_per_slot, off_peak_price_per_slot, facilities, status
      FROM courts
      WHERE id = :id
@@ -157,6 +157,56 @@ async function findById(id) {
     settings,
     priceRules: priceRows.map(mapPriceRule),
   };
+}
+
+async function create({ code, name, address, type, surfaceType = 'standard', basePricePerHour = 160000, facilities = [] }) {
+  const result = await query(
+    `INSERT INTO courts (code, name, address, court_type, surface_type, base_price_per_hour, facilities)
+     VALUES (:code, :name, :address, :type, :surfaceType, :basePricePerHour, :facilities)`,
+    {
+      code,
+      name,
+      address,
+      type,
+      surfaceType,
+      basePricePerHour,
+      facilities: JSON.stringify(facilities),
+    },
+  );
+
+  return findById(result.insertId);
+}
+
+async function update(id, { code, name, address, type, surfaceType = 'standard', basePricePerHour = 160000, status = 'available', facilities = [] }) {
+  await query(
+    `UPDATE courts
+     SET code = :code,
+         name = :name,
+         address = :address,
+         court_type = :type,
+         surface_type = :surfaceType,
+         base_price_per_hour = :basePricePerHour,
+         facilities = :facilities,
+         status = :status
+     WHERE id = :id`,
+    {
+      id,
+      code,
+      name,
+      address,
+      type,
+      surfaceType,
+      basePricePerHour,
+      status,
+      facilities: JSON.stringify(facilities),
+    },
+  );
+
+  return findById(id);
+}
+
+async function remove(id) {
+  await query('DELETE FROM courts WHERE id = :id', { id });
 }
 
 async function availability(courtId, date) {
@@ -270,6 +320,9 @@ function findPrice(priceRules, startTime) {
 
 module.exports = {
   availability,
+  create,
   findById,
   list,
+  remove,
+  update,
 };

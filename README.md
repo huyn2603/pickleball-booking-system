@@ -530,7 +530,7 @@ VITE_GOOGLE_CLIENT_ID=your-google-web-client-id
 | Vai trò (Role) | Phạm vi & Quyền hạn                                                                                                          |
 | :------------- | :--------------------------------------------------------------------------------------------------------------------------- |
 | **Admin**      | Toàn quyền cấu hình hệ thống, quản lý tài khoản người dùng, phân quyền, xem audit log, sao lưu và khôi phục dữ liệu.        |
-| **Owner**      | Xem doanh thu và báo cáo, cấu hình sân và bảng giá, quản lý addon, xem và xử lý feedback từ Customer.                       |
+| **Owner**      | Xem doanh thu và báo cáo, cấu hình sân và bảng giá, quản lý addon, quản lý nhân sự, xem và xử lý feedback từ Customer.                       |
 | **Staff**      | Xem và quản lý booking trong ngày, check-in/check-out khách hàng, ghi nhận thanh toán tại quầy, quản lý addon tại cơ sở.    |
 | **Customer**   | Xem lịch sân, tự đặt sân online, thanh toán, hủy lịch, thêm addon, gửi feedback, xem lịch sử đặt sân của bản thân.          |
 | **Guest**      | Xem HomePage, đăng kí tài khoản           |

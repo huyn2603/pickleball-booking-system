@@ -48,6 +48,7 @@ CREATE TABLE users (
   email VARCHAR(150) NOT NULL,
   phone VARCHAR(30) NOT NULL,
   password VARCHAR(255) NOT NULL,
+  avatar_url LONGTEXT NULL,
   role_id TINYINT UNSIGNED NOT NULL,
   status ENUM('Active','Inactive','Blocked','Unverified') NOT NULL DEFAULT 'Active',
   email_verified_at DATETIME NULL,
@@ -84,6 +85,7 @@ CREATE TABLE courts (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   code VARCHAR(30) NOT NULL,
   name VARCHAR(120) NOT NULL,
+  address VARCHAR(255) NOT NULL,
   court_type ENUM('indoor','outdoor') NOT NULL DEFAULT 'indoor',
   surface_type ENUM('standard','premium','synthetic','concrete','wood') NOT NULL DEFAULT 'standard',
   base_price_per_hour INT UNSIGNED NOT NULL,
@@ -460,16 +462,36 @@ INSERT INTO roles (code, name, description) VALUES
 INSERT INTO settings (venue_name, city, address, phone, email)
 VALUES ('Pickleball Ha Noi', 'Ha Noi', 'Ha Noi, Viet Nam', '0900000000', 'pickleballhanoi@gmail.com');
 
-INSERT INTO users (full_name, email, phone, password, role_id, status, email_verified_at) VALUES
-  ('System Admin', 'pickleball.admin@gmail.com', '0900000001', '123456', 1, 'Active', NOW()),
-  ('Venue Owner', 'pickleball.owner@gmail.com', '0900000002', '123456', 2, 'Active', NOW()),
-  ('Counter Staff', 'pickleball.staff@gmail.com', '0900000003', '123456', 3, 'Active', NOW()),
-  ('Demo Customer', 'pickleball.customer@gmail.com', '0900000004', '123456', 4, 'Active', NOW());
+INSERT INTO users (full_name, email, phone, password, avatar_url, role_id, status, email_verified_at) VALUES
+  ('System Admin', 'pickleball.admin@gmail.com', '0900000001', '123456', 'https://ui-avatars.com/api/?name=System+Admin&background=111827&color=ffffff', 1, 'Active', NOW()),
+  ('Venue Owner', 'pickleball.owner@gmail.com', '0900000002', '123456', 'https://ui-avatars.com/api/?name=Venue+Owner&background=0f766e&color=ffffff', 2, 'Active', NOW()),
+  ('Counter Staff', 'pickleball.staff@gmail.com', '0900000003', '123456', 'https://ui-avatars.com/api/?name=Counter+Staff&background=2563eb&color=ffffff', 3, 'Active', NOW()),
+  ('Demo Customer', 'pickleball.customer@gmail.com', '0900000004', '123456', 'https://ui-avatars.com/api/?name=Demo+Customer&background=16a34a&color=ffffff', 4, 'Active', NOW()),
+  ('Staff Nguyen An', 'pickleball.staff01@gmail.com', '0911000001', '123456', 'https://ui-avatars.com/api/?name=Staff+Nguyen+An&background=2563eb&color=ffffff', 3, 'Active', NOW()),
+  ('Staff Tran Binh', 'pickleball.staff02@gmail.com', '0911000002', '123456', 'https://ui-avatars.com/api/?name=Staff+Tran+Binh&background=2563eb&color=ffffff', 3, 'Active', NOW()),
+  ('Staff Le Chi', 'pickleball.staff03@gmail.com', '0911000003', '123456', 'https://ui-avatars.com/api/?name=Staff+Le+Chi&background=2563eb&color=ffffff', 3, 'Active', NOW()),
+  ('Staff Pham Dung', 'pickleball.staff04@gmail.com', '0911000004', '123456', 'https://ui-avatars.com/api/?name=Staff+Pham+Dung&background=2563eb&color=ffffff', 3, 'Active', NOW()),
+  ('Staff Hoang Em', 'pickleball.staff05@gmail.com', '0911000005', '123456', 'https://ui-avatars.com/api/?name=Staff+Hoang+Em&background=2563eb&color=ffffff', 3, 'Active', NOW()),
+  ('Staff Vu Giang', 'pickleball.staff06@gmail.com', '0911000006', '123456', 'https://ui-avatars.com/api/?name=Staff+Vu+Giang&background=2563eb&color=ffffff', 3, 'Active', NOW()),
+  ('Staff Do Hanh', 'pickleball.staff07@gmail.com', '0911000007', '123456', 'https://ui-avatars.com/api/?name=Staff+Do+Hanh&background=2563eb&color=ffffff', 3, 'Active', NOW()),
+  ('Staff Bui Khoa', 'pickleball.staff08@gmail.com', '0911000008', '123456', 'https://ui-avatars.com/api/?name=Staff+Bui+Khoa&background=2563eb&color=ffffff', 3, 'Active', NOW()),
+  ('Staff Dang Linh', 'pickleball.staff09@gmail.com', '0911000009', '123456', 'https://ui-avatars.com/api/?name=Staff+Dang+Linh&background=2563eb&color=ffffff', 3, 'Active', NOW()),
+  ('Staff Ngo Minh', 'pickleball.staff10@gmail.com', '0911000010', '123456', 'https://ui-avatars.com/api/?name=Staff+Ngo+Minh&background=2563eb&color=ffffff', 3, 'Active', NOW()),
+  ('Customer Nguyen Anh', 'pickleball.customer01@gmail.com', '0922000001', '123456', 'https://ui-avatars.com/api/?name=Customer+Nguyen+Anh&background=16a34a&color=ffffff', 4, 'Active', NOW()),
+  ('Customer Tran Bao', 'pickleball.customer02@gmail.com', '0922000002', '123456', 'https://ui-avatars.com/api/?name=Customer+Tran+Bao&background=16a34a&color=ffffff', 4, 'Active', NOW()),
+  ('Customer Le Chau', 'pickleball.customer03@gmail.com', '0922000003', '123456', 'https://ui-avatars.com/api/?name=Customer+Le+Chau&background=16a34a&color=ffffff', 4, 'Active', NOW()),
+  ('Customer Pham Duy', 'pickleball.customer04@gmail.com', '0922000004', '123456', 'https://ui-avatars.com/api/?name=Customer+Pham+Duy&background=16a34a&color=ffffff', 4, 'Active', NOW()),
+  ('Customer Hoang Ha', 'pickleball.customer05@gmail.com', '0922000005', '123456', 'https://ui-avatars.com/api/?name=Customer+Hoang+Ha&background=16a34a&color=ffffff', 4, 'Active', NOW()),
+  ('Customer Vu Khanh', 'pickleball.customer06@gmail.com', '0922000006', '123456', 'https://ui-avatars.com/api/?name=Customer+Vu+Khanh&background=16a34a&color=ffffff', 4, 'Active', NOW()),
+  ('Customer Do Lan', 'pickleball.customer07@gmail.com', '0922000007', '123456', 'https://ui-avatars.com/api/?name=Customer+Do+Lan&background=16a34a&color=ffffff', 4, 'Active', NOW()),
+  ('Customer Bui Nam', 'pickleball.customer08@gmail.com', '0922000008', '123456', 'https://ui-avatars.com/api/?name=Customer+Bui+Nam&background=16a34a&color=ffffff', 4, 'Active', NOW()),
+  ('Customer Dang Oanh', 'pickleball.customer09@gmail.com', '0922000009', '123456', 'https://ui-avatars.com/api/?name=Customer+Dang+Oanh&background=16a34a&color=ffffff', 4, 'Active', NOW()),
+  ('Customer Ngo Phuc', 'pickleball.customer10@gmail.com', '0922000010', '123456', 'https://ui-avatars.com/api/?name=Customer+Ngo+Phuc&background=16a34a&color=ffffff', 4, 'Active', NOW());
 
-INSERT INTO courts (code, name, court_type, surface_type, base_price_per_hour, facilities) VALUES
-  ('A1', 'San A1', 'indoor', 'standard', 160000, JSON_ARRAY('lighting','parking','locker')),
-  ('A2', 'San A2', 'indoor', 'standard', 160000, JSON_ARRAY('lighting','parking')),
-  ('B1', 'San B1', 'outdoor', 'synthetic', 140000, JSON_ARRAY('lighting','parking'));
+INSERT INTO courts (code, name, address, court_type, surface_type, base_price_per_hour, facilities) VALUES
+  ('A1', 'San A1', '12 Trinh Cong Son, Tay Ho, Ha Noi', 'indoor', 'standard', 160000, JSON_ARRAY('lighting','parking','locker')),
+  ('A2', 'San A2', '12 Trinh Cong Son, Tay Ho, Ha Noi', 'indoor', 'standard', 160000, JSON_ARRAY('lighting','parking')),
+  ('B1', 'San B1', '34 Nguyen Van Huyen, Cau Giay, Ha Noi', 'outdoor', 'synthetic', 140000, JSON_ARRAY('lighting','parking'));
 
 INSERT INTO price_rules (court_id, name, day_of_week, start_time, end_time, price_per_slot, priority) VALUES
   (NULL, 'Off peak', NULL, '05:00:00', '17:00:00', 80000, 100),

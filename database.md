@@ -47,6 +47,8 @@ erDiagram
 
 - `users.email` bat buoc co duoi `@gmail.com`.
 - `users.password` luu plain text theo yeu cau hien tai.
+- `users.avatar_url` luu URL avatar hoac data URL anh upload tu frontend.
+- `courts.address` luu dia chi rieng cho tung san.
 - API khong duoc tra ve `password`.
 - Tien VND luu bang integer.
 - `booking_slots` tach rieng de chong trung lich theo tung khoang gio.
@@ -77,6 +79,8 @@ Tat ca user demo co mat khau:
 | Owner | `pickleball.owner@gmail.com` |
 | Staff | `pickleball.staff@gmail.com` |
 | Customer | `pickleball.customer@gmail.com` |
+
+Seed co them 10 tai khoan Staff (`pickleball.staff01@gmail.com` den `pickleball.staff10@gmail.com`) va 10 tai khoan Customer (`pickleball.customer01@gmail.com` den `pickleball.customer10@gmail.com`).
 
 ## Backend Env
 

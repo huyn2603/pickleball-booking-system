@@ -11,6 +11,7 @@ function mapUser(row) {
     email: row.email,
     phone: row.phone,
     password: row.password,
+    avatarUrl: row.avatar_url,
     role: row.role_code,
     status: row.status,
     emailVerifiedAt: row.email_verified_at,
@@ -36,6 +37,7 @@ const baseSelect = `
     u.email,
     u.phone,
     u.password,
+    u.avatar_url,
     u.status,
     u.email_verified_at,
     u.last_login_at,
@@ -77,11 +79,13 @@ async function getRoleIdByCode(code) {
   return rows[0]?.id || null;
 }
 
+
 async function create({
   fullName,
   email,
   phone = '',
   password,
+  avatarUrl = null,
   role = 'Customer',
   status = 'Active',
   emailVerifiedAt = null,
@@ -92,13 +96,32 @@ async function create({
   }
 
   const result = await query(
-    `INSERT INTO users (full_name, email, phone, password, role_id, status, email_verified_at)
-     VALUES (:fullName, :email, :phone, :password, :roleId, :status, :emailVerifiedAt)`,
+    `INSERT INTO users (
+      full_name,
+      email,
+      phone,
+      password,
+      avatar_url,
+      role_id,
+      status,
+      email_verified_at
+    )
+    VALUES (
+      :fullName,
+      :email,
+      :phone,
+      :password,
+      :avatarUrl,
+      :roleId,
+      :status,
+      :emailVerifiedAt
+    )`,
     {
       fullName,
       email,
       phone,
       password,
+      avatarUrl,
       roleId,
       status,
       emailVerifiedAt,
@@ -126,12 +149,12 @@ async function updatePassword(id, password) {
   return findById(id);
 }
 
-async function updateProfile(id, { fullName, email, phone }) {
+async function updateProfile(id, { fullName, email, phone, avatarUrl = null }) {
   await query(
     `UPDATE users
-     SET full_name = :fullName, email = :email, phone = :phone
+     SET full_name = :fullName, email = :email, phone = :phone, avatar_url = :avatarUrl
      WHERE id = :id`,
-    { id, fullName, email, phone },
+    { id, fullName, email, phone, avatarUrl },
   );
 
   return findById(id);
