@@ -24,8 +24,18 @@ Backend hien co cac endpoint auth:
 
 - `POST /api/auth/register`
 - `POST /api/auth/login`
+- `POST /api/auth/google-login`
+- `POST /api/auth/forgot-password/request-otp`
+- `POST /api/auth/forgot-password/verify-otp`
+- `POST /api/auth/forgot-password/reset`
 - `POST /api/auth/password`
 - `GET /api/auth/me`
+
+Bien moi truong de bat nut dang nhap Gmail:
+
+```env
+VITE_GOOGLE_CLIENT_ID=your-google-web-client-id
+```
 
 Khi goi endpoint can dang nhap, gui token trong header:
 

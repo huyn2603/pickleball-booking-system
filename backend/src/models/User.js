@@ -79,15 +79,43 @@ async function getRoleIdByCode(code) {
   return rows[0]?.id || null;
 }
 
-async function create({ fullName, email, phone, password, avatarUrl = null, role = 'Customer', status = 'Active' }) {
+
+async function create({
+  fullName,
+  email,
+  phone = '',
+  password,
+  avatarUrl = null,
+  role = 'Customer',
+  status = 'Active',
+  emailVerifiedAt = null,
+}) {
   const roleId = await getRoleIdByCode(role);
   if (!roleId) {
     throw new Error(`Role does not exist: ${role}`);
   }
 
   const result = await query(
-    `INSERT INTO users (full_name, email, phone, password, avatar_url, role_id, status)
-     VALUES (:fullName, :email, :phone, :password, :avatarUrl, :roleId, :status)`,
+    `INSERT INTO users (
+      full_name,
+      email,
+      phone,
+      password,
+      avatar_url,
+      role_id,
+      status,
+      email_verified_at
+    )
+    VALUES (
+      :fullName,
+      :email,
+      :phone,
+      :password,
+      :avatarUrl,
+      :roleId,
+      :status,
+      :emailVerifiedAt
+    )`,
     {
       fullName,
       email,
@@ -96,6 +124,7 @@ async function create({ fullName, email, phone, password, avatarUrl = null, role
       avatarUrl,
       roleId,
       status,
+      emailVerifiedAt,
     },
   );
 

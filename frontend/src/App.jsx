@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import defaultAvatar from './assets/default-avatar.jpg'
 import logoutIcon from './assets/logout-icon.png'
 import courtOutdoor from './assets/court-outdoor.webp'
@@ -6,6 +6,7 @@ import courtIndoor from './assets/court-indoor.jpg'
 import './App.css'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
 const roleLabels = {
   Admin: 'Admin',
@@ -101,9 +102,13 @@ function App() {
   const [mode, setMode] = useState('login')
   const [editingProfile, setEditingProfile] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
+  const [googleReady, setGoogleReady] = useState(() => Boolean(window.google?.accounts?.id))
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('')
   const [accounts, setAccounts] = useState(null)
+  const [forgotPasswordStep, setForgotPasswordStep] = useState('request')
+  const [resetToken, setResetToken] = useState('')
   const [accountsLoading, setAccountsLoading] = useState(false)
   const [staffDashboard, setStaffDashboard] = useState({ date: getTodayString(), bookings: [], addons: [] })
   const [staffLoading, setStaffLoading] = useState(false)
@@ -113,6 +118,7 @@ function App() {
     phone: '',
     password: '',
     confirmPassword: '',
+    otp: '',
   })
   const [courtForm, setCourtForm] = useState({
     code: '',
@@ -141,23 +147,81 @@ function App() {
   const safeCourtPage = Math.min(courtPage, totalCourtPages)
   const pagedCourts = filteredCourts.slice((safeCourtPage - 1) * courtsPerPage, safeCourtPage * courtsPerPage)
   const selectedCourt = courts.find((court) => Number(court.id) === Number(selectedCourtId))
+  const googleButtonRef = useRef(null)
+  const googleInitializedRef = useRef(false)
 
   useEffect(() => {
     if (session && canManageAccounts) {
       fetchAccounts()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.token, role])
 
   useEffect(() => {
     if (session) {
       fetchCourts()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.token])
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) {
+      return undefined
+    }
+
+    if (window.google?.accounts?.id) {
+      return undefined
+    }
+
+    const handleLoad = () => setGoogleReady(true)
+    const existingScript = document.querySelector('script[data-google-identity="true"]')
+    if (existingScript) {
+      existingScript.addEventListener('load', handleLoad)
+      return () => existingScript.removeEventListener('load', handleLoad)
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.defer = true
+    script.dataset.googleIdentity = 'true'
+    script.onload = handleLoad
+    document.body.appendChild(script)
+
+    return () => {
+      script.onload = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (page !== 'auth' || isForgotPassword || !GOOGLE_CLIENT_ID || !googleReady || !googleButtonRef.current || !window.google?.accounts?.id) {
+      return
+    }
+
+    if (!googleInitializedRef.current) {
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: ({ credential }) => loginWithGoogle(credential),
+      })
+      googleInitializedRef.current = true
+    }
+
+    googleButtonRef.current.innerHTML = ''
+    window.google.accounts.id.renderButton(googleButtonRef.current, {
+      theme: 'outline',
+      size: 'large',
+      shape: 'pill',
+      width: '320',
+      text: isRegister ? 'signup_with' : 'signin_with',
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, isForgotPassword, isRegister, googleReady])
 
   useEffect(() => {
     if (session && role === 'Staff') {
       fetchStaffDashboard()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.token, role])
 
   function updateField(event) {
@@ -203,6 +267,14 @@ function App() {
   function showAuth(nextMode) {
     setMode(nextMode)
     setPage('auth')
+    setForgotPasswordStep('request')
+    setResetToken('')
+    setForm((current) => ({
+      ...current,
+      password: '',
+      confirmPassword: '',
+      otp: '',
+    }))
     resetNotice()
   }
 
@@ -230,7 +302,6 @@ function App() {
 
     showDashboard()
   }
-
   function showCourts() {
     setAvatarMenuOpen(false)
     resetNotice()
@@ -588,7 +659,7 @@ function App() {
       setPage('home')
       setMessage(isRegister ? 'Đăng ký thành công.' : 'Đăng nhập thành công.')
       setMessageType('success')
-      setForm({ fullName: '', email: '', phone: '', password: '', confirmPassword: '' })
+      setForm({ fullName: '', email: '', phone: '', password: '', confirmPassword: '', otp: '' })
     } catch (error) {
       setMessage(error.message)
       setMessageType('error')
@@ -597,7 +668,102 @@ function App() {
     }
   }
 
-  async function submitForgotPassword(event) {
+  async function loginWithGoogle(credential) {
+    if (!credential) {
+      setMessage('Không nhận được thông tin đăng nhập từ Google.')
+      setMessageType('error')
+      return
+    }
+
+    setGoogleLoading(true)
+    resetNotice()
+
+    try {
+      const response = await fetch(`${API_URL}/auth/google-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể đăng nhập bằng Gmail.')
+      }
+
+      persistSession(data)
+      setPage('home')
+      setMessage('Đăng nhập bằng Gmail thành công.')
+      setMessageType('success')
+      setForm({ fullName: '', email: '', phone: '', password: '', confirmPassword: '', otp: '' })
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setGoogleLoading(false)
+    }
+  }
+
+  async function requestForgotPasswordOtp(event) {
+    event.preventDefault()
+    setLoading(true)
+    resetNotice()
+
+    try {
+      const response = await fetch(`${API_URL}/auth/forgot-password/request-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể gửi mã OTP.')
+      }
+
+      setForgotPasswordStep('verify')
+      setResetToken('')
+      setForm((current) => ({ ...current, otp: '', password: '', confirmPassword: '' }))
+      setMessage(data.message || 'Mã OTP đã được gửi đến email của bạn.')
+      setMessageType('success')
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function verifyForgotPasswordOtp(event) {
+    event.preventDefault()
+    setLoading(true)
+    resetNotice()
+
+    try {
+      const response = await fetch(`${API_URL}/auth/forgot-password/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email, otp: form.otp }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể xác minh OTP.')
+      }
+
+      setResetToken(data.resetToken || '')
+      setForgotPasswordStep('reset')
+      setForm((current) => ({ ...current, password: '', confirmPassword: '' }))
+      setMessage(data.message || 'OTP hợp lệ. Bạn có thể đặt mật khẩu mới.')
+      setMessageType('success')
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function submitForgotPasswordReset(event) {
     event.preventDefault()
     setLoading(true)
     resetNotice()
@@ -610,10 +776,10 @@ function App() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/auth/forgot-password`, {
+      const response = await fetch(`${API_URL}/auth/forgot-password/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email, password: form.password }),
+        body: JSON.stringify({ email: form.email, password: form.password, resetToken }),
       })
       const data = await response.json()
 
@@ -622,9 +788,11 @@ function App() {
       }
 
       setMode('login')
+      setForgotPasswordStep('request')
+      setResetToken('')
       setMessage(data.message || 'Mật khẩu đã được đặt lại. Vui lòng đăng nhập.')
       setMessageType('success')
-      setForm((current) => ({ ...current, password: '', confirmPassword: '' }))
+      setForm({ fullName: '', email: form.email, phone: '', password: '', confirmPassword: '', otp: '' })
     } catch (error) {
       setMessage(error.message)
       setMessageType('error')
@@ -934,12 +1102,55 @@ function App() {
             )}
 
             {isForgotPassword ? (
-              <form className="auth-form" onSubmit={submitForgotPassword}>
-                <Field name="email" type="email" label="Email" value={form.email} onChange={updateField} placeholder="pickleball.customer@gmail.com" />
-                <Field name="password" type="password" label="Mật khẩu mới" value={form.password} onChange={updateField} placeholder="Ít nhất 6 ký tự" minLength="6" />
-                <Field name="confirmPassword" type="password" label="Nhập lại mật khẩu mới" value={form.confirmPassword} onChange={updateField} placeholder="Nhập lại mật khẩu" minLength="6" />
+              <form
+                className="auth-form"
+                onSubmit={
+                  forgotPasswordStep === 'request'
+                    ? requestForgotPasswordOtp
+                    : forgotPasswordStep === 'verify'
+                      ? verifyForgotPasswordOtp
+                      : submitForgotPasswordReset
+                }
+              >
+                <div className="otp-step-badge">Bước {forgotPasswordStep === 'request' ? '1/3 - Gửi OTP' : forgotPasswordStep === 'verify' ? '2/3 - Xác minh OTP' : '3/3 - Đổi mật khẩu'}</div>
+                <Field
+                  name="email"
+                  type="email"
+                  label="Email"
+                  value={form.email}
+                  onChange={updateField}
+                  placeholder="pickleball.customer@gmail.com"
+                  readOnly={forgotPasswordStep !== 'request'}
+                />
+                {forgotPasswordStep === 'verify' && (
+                  <Field name="otp" label="Mã OTP" value={form.otp} onChange={updateField} placeholder="Nhập 6 số OTP" />
+                )}
+                {forgotPasswordStep === 'reset' && (
+                  <>
+                    <Field name="password" type="password" label="Mật khẩu mới" value={form.password} onChange={updateField} placeholder="Ít nhất 6 ký tự" minLength="6" />
+                    <Field name="confirmPassword" type="password" label="Nhập lại mật khẩu mới" value={form.confirmPassword} onChange={updateField} placeholder="Nhập lại mật khẩu" minLength="6" />
+                  </>
+                )}
                 {message && <p className={`message ${messageType}`}>{message}</p>}
-                <button className="primary-button wide" type="submit" disabled={loading}>{loading ? 'Đang xử lý...' : 'Đặt lại mật khẩu'}</button>
+                <button className="primary-button wide" type="submit" disabled={loading}>
+                  {loading
+                    ? 'Đang xử lý...'
+                    : forgotPasswordStep === 'request'
+                      ? 'Gửi mã OTP'
+                      : forgotPasswordStep === 'verify'
+                        ? 'Xác minh OTP'
+                        : 'Đặt lại mật khẩu'}
+                </button>
+                {forgotPasswordStep !== 'request' && (
+                  <button
+                    type="button"
+                    className="secondary-button wide"
+                    onClick={forgotPasswordStep === 'verify' ? requestForgotPasswordOtp : () => setForgotPasswordStep('verify')}
+                    disabled={loading}
+                  >
+                    {forgotPasswordStep === 'verify' ? 'Gửi lại mã OTP' : 'Quay lại bước OTP'}
+                  </button>
+                )}
               </form>
             ) : (
               <form className="auth-form" onSubmit={submitAuth}>
@@ -954,6 +1165,20 @@ function App() {
                 {message && <p className={`message ${messageType}`}>{message}</p>}
                 <button className="primary-button wide" type="submit" disabled={loading}>{loading ? 'Đang xử lý...' : isRegister ? 'Đăng ký' : 'Đăng nhập'}</button>
               </form>
+            )}
+
+            {!isForgotPassword && (
+              <div className="social-auth-block">
+                <div className="auth-divider"><span>hoặc tiếp tục với Gmail</span></div>
+                {GOOGLE_CLIENT_ID ? (
+                  <>
+                    <div className="google-button-wrap" ref={googleButtonRef} />
+                    {googleLoading && <p className="message">Đang xác thực Gmail...</p>}
+                  </>
+                ) : (
+                  <p className="message">Chưa cấu hình Google Client ID nên nút đăng nhập Gmail đang tắt.</p>
+                )}
+              </div>
             )}
 
             <div className="form-actions">

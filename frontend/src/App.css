@@ -779,6 +779,19 @@ select:focus {
   gap: 16px;
 }
 
+.otp-step-badge {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 8px 16px;
+  background: #e7f8ec;
+  color: var(--success);
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .avatar-editor {
   display: flex;
   align-items: center;
@@ -809,6 +822,41 @@ select:focus {
 
 .form-actions {
   margin-top: 18px;
+  display: flex;
+  justify-content: center;
+}
+
+.social-auth-block {
+  margin-top: 24px;
+  display: grid;
+  gap: 16px;
+}
+
+.auth-divider {
+  position: relative;
+  text-align: center;
+}
+
+.auth-divider::before {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  border-top: 1px solid var(--hairline);
+}
+
+.auth-divider span {
+  position: relative;
+  display: inline-block;
+  padding: 0 14px;
+  background: var(--canvas);
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.google-button-wrap {
+  min-height: 44px;
   display: flex;
   justify-content: center;
 }

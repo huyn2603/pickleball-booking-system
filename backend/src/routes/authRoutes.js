@@ -6,7 +6,10 @@ const router = express.Router();
 
 router.post('/register', authController.register);
 router.post('/login', authController.login);
-router.post('/forgot-password', authController.forgotPassword);
+router.post('/google-login', authController.googleLogin);
+router.post('/forgot-password/request-otp', authController.requestPasswordResetOtp);
+router.post('/forgot-password/verify-otp', authController.verifyPasswordResetOtp);
+router.post('/forgot-password/reset', authController.resetPasswordWithOtp);
 router.post('/password', authController.getPlainPassword);
 router.get('/me', requireAuth, authController.me);
 router.put('/me', requireAuth, authController.updateMe);

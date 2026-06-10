@@ -451,12 +451,30 @@ npm install
 npm run dev
 ```
 
+Can cau hinh them bien moi truong neu muon dung Google login va OTP email that:
+
+```env
+GOOGLE_CLIENT_ID=your-google-web-client-id
+SMTP_SERVICE=gmail
+SMTP_USER=your-mail@gmail.com
+SMTP_PASS=your-gmail-app-password
+SMTP_FROM="Pickleball Booking System <your-mail@gmail.com>"
+PASSWORD_RESET_OTP_EXPIRES_MINUTES=10
+PASSWORD_RESET_OTP_MAX_ATTEMPTS=5
+```
+
 ### Frontend
 
 ```bash
 cd frontend
 npm install
 npm run dev
+```
+
+Neu dung Google Sign-In o frontend:
+
+```env
+VITE_GOOGLE_CLIENT_ID=your-google-web-client-id
 ```
 
 ---
