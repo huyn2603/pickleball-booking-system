@@ -1,4 +1,4 @@
-# AGENTS.md - Pickleball Booking System Agent Constitution
+# AGENT.md - Pickleball Booking System Agent Constitution
 
 File nay la quy tac lam viec cho agent trong repo Pickleball Booking System.
 
@@ -135,8 +135,28 @@ Quy tac du lieu:
 - `GET /api/health`
 - `POST /api/auth/register`
 - `POST /api/auth/login`
+- `POST /api/auth/google-login`
+- `POST /api/auth/forgot-password/request-otp`
+- `POST /api/auth/forgot-password/verify-otp`
+- `POST /api/auth/forgot-password/reset`
 - `POST /api/auth/password`
 - `GET /api/auth/me`
+- `PUT /api/auth/me`
+- `GET /api/auth/accounts`
+- `POST /api/auth/accounts`
+- `PATCH /api/auth/accounts/:id/status`
+- `DELETE /api/auth/accounts/:id`
+- `GET /api/courts`
+- `POST /api/courts`
+- `GET /api/courts/:id`
+- `PATCH /api/courts/:id`
+- `DELETE /api/courts/:id`
+- `GET /api/courts/:id/availability`
+- `GET /api/staff/dashboard`
+- `POST /api/staff/bookings/:id/check-in`
+- `POST /api/staff/bookings/:id/check-out`
+- `POST /api/staff/bookings/:id/payment`
+- `PATCH /api/staff/addons/:id/stock`
 
 ## 12. Definition of Done
 
