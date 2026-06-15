@@ -48,13 +48,51 @@ function mapSettings(row) {
   };
 }
 
-function mapCourt(row, settings = null) {
-  if (!row) {
+function mapBranch(row) {
+  if (!row?.id) {
     return null;
   }
 
   return {
     id: row.id,
+    code: row.code,
+    name: row.name,
+    district: row.district,
+    address: row.address,
+    phone: row.phone,
+    email: row.email,
+    openTime: normalizeTime(row.open_time),
+    closeTime: normalizeTime(row.close_time),
+    status: row.status,
+  };
+}
+
+function mapCourt(row, settings = null) {
+  if (!row) {
+    return null;
+  }
+
+  const branch = mapBranch({
+    id: row.branch_id,
+    code: row.branch_code,
+    name: row.branch_name,
+    district: row.branch_district,
+    address: row.branch_address,
+    phone: row.branch_phone,
+    email: row.branch_email,
+    open_time: row.branch_open_time,
+    close_time: row.branch_close_time,
+    status: row.branch_status,
+  });
+  const openTime = branch?.openTime || settings?.openTime || '';
+  const closeTime = branch?.closeTime || settings?.closeTime || '';
+
+  return {
+    id: row.id,
+    branchId: row.branch_id,
+    branchCode: row.branch_code,
+    branchName: row.branch_name,
+    branch,
     code: row.code,
     name: row.name,
     type: row.court_type,
@@ -66,19 +104,20 @@ function mapCourt(row, settings = null) {
     status: row.status,
     statusLabel: statusLabel(row.status),
     count: 1,
-    district: settings?.city || 'Ha Noi',
-    address: row.address || settings?.address || '',
-    hotline: settings?.phone || '',
-    hours: settings ? `${settings.openTime} - ${settings.closeTime}` : '',
-    venueName: settings?.venueName || '',
-    intro: `${row.name} thuộc ${settings?.venueName || 'cơ sở pickleball'}, mặt sân ${row.surface_type}, trạng thái ${statusLabel(row.status).toLowerCase()}.`,
-    locationQuery: `${row.address || settings?.address || settings?.venueName || row.name}, ${settings?.city || 'Ha Noi'}`,
+    district: branch?.district || settings?.city || 'Ha Noi',
+    address: row.address || branch?.address || settings?.address || '',
+    hotline: branch?.phone || settings?.phone || '',
+    hours: openTime && closeTime ? `${openTime} - ${closeTime}` : '',
+    venueName: branch?.name || settings?.venueName || '',
+    intro: `${row.name} thuoc ${branch?.name || settings?.venueName || 'he thong pickleball'}, mat san ${row.surface_type}, trang thai ${statusLabel(row.status).toLowerCase()}.`,
+    locationQuery: `${row.address || branch?.address || settings?.address || settings?.venueName || row.name}, ${branch?.district || settings?.city || 'Ha Noi'}`,
   };
 }
 
 function mapPriceRule(row) {
   return {
     id: row.id,
+    branchId: row.branch_id,
     courtId: row.court_id,
     name: row.name,
     dayOfWeek: row.day_of_week,
@@ -102,26 +141,62 @@ async function getSettings() {
   return mapSettings(rows[0]);
 }
 
-async function list({ type = 'all' } = {}) {
-  const settings = await getSettings();
-  const params = {};
-  const typeClause = type && type !== 'all' ? 'WHERE court_type = :type' : '';
+async function listBranches() {
+  const rows = await query(
+    `SELECT id, code, name, district, address, phone, email, open_time, close_time, status
+     FROM branches
+     ORDER BY status = 'active' DESC, code ASC`,
+  );
 
-  if (typeClause) {
+  return rows.map(mapBranch);
+}
+
+async function getDefaultBranchId() {
+  const rows = await query(
+    `SELECT id
+     FROM branches
+     WHERE status = 'active'
+     ORDER BY id ASC
+     LIMIT 1`,
+  );
+
+  return rows[0]?.id || null;
+}
+
+async function list({ type = 'all', branchId = null } = {}) {
+  const settings = await getSettings();
+  const branches = await listBranches();
+  const params = {};
+  const where = [];
+
+  if (type && type !== 'all') {
+    where.push('c.court_type = :type');
     params.type = type;
   }
 
+  if (branchId) {
+    where.push('c.branch_id = :branchId');
+    params.branchId = branchId;
+  }
+
   const rows = await query(
-    `SELECT id, code, name, address, court_type, surface_type, base_price_per_hour,
-            peak_price_per_slot, off_peak_price_per_slot, facilities, status
-     FROM courts
-     ${typeClause}
-     ORDER BY code ASC, name ASC`,
+    `SELECT c.id, c.branch_id, c.code, c.name, c.address, c.court_type, c.surface_type,
+            c.base_price_per_hour, c.peak_price_per_slot, c.off_peak_price_per_slot,
+            c.facilities, c.status,
+            b.code AS branch_code, b.name AS branch_name, b.district AS branch_district,
+            b.address AS branch_address, b.phone AS branch_phone, b.email AS branch_email,
+            b.open_time AS branch_open_time, b.close_time AS branch_close_time,
+            b.status AS branch_status
+     FROM courts c
+     JOIN branches b ON b.id = c.branch_id
+     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+     ORDER BY b.code ASC, c.code ASC, c.name ASC`,
     params,
   );
 
   return {
     settings,
+    branches,
     courts: rows.map((row) => mapCourt(row, settings)),
   };
 }
@@ -129,10 +204,16 @@ async function list({ type = 'all' } = {}) {
 async function findById(id) {
   const settings = await getSettings();
   const rows = await query(
-    `SELECT id, code, name, address, court_type, surface_type, base_price_per_hour,
-            peak_price_per_slot, off_peak_price_per_slot, facilities, status
-     FROM courts
-     WHERE id = :id
+    `SELECT c.id, c.branch_id, c.code, c.name, c.address, c.court_type, c.surface_type,
+            c.base_price_per_hour, c.peak_price_per_slot, c.off_peak_price_per_slot,
+            c.facilities, c.status,
+            b.code AS branch_code, b.name AS branch_name, b.district AS branch_district,
+            b.address AS branch_address, b.phone AS branch_phone, b.email AS branch_email,
+            b.open_time AS branch_open_time, b.close_time AS branch_close_time,
+            b.status AS branch_status
+     FROM courts c
+     JOIN branches b ON b.id = c.branch_id
+     WHERE c.id = :id
      LIMIT 1`,
     { id },
   );
@@ -143,13 +224,14 @@ async function findById(id) {
   }
 
   const priceRows = await query(
-    `SELECT id, court_id, name, day_of_week, start_time, end_time,
+    `SELECT id, branch_id, court_id, name, day_of_week, start_time, end_time,
             price_per_slot, priority
      FROM price_rules
      WHERE is_active = TRUE
        AND (court_id IS NULL OR court_id = :id)
+       AND (branch_id IS NULL OR branch_id = :branchId)
      ORDER BY COALESCE(day_of_week, 0), start_time ASC, priority ASC`,
-    { id },
+    { id, branchId: court.branchId },
   );
 
   return {
@@ -159,11 +241,26 @@ async function findById(id) {
   };
 }
 
-async function create({ code, name, address, type, surfaceType = 'standard', basePricePerHour = 160000, facilities = [] }) {
+async function create({
+  branchId,
+  code,
+  name,
+  address,
+  type,
+  surfaceType = 'standard',
+  basePricePerHour = 160000,
+  facilities = [],
+}) {
+  const safeBranchId = branchId || await getDefaultBranchId();
+  if (!safeBranchId) {
+    throw new Error('No active branch exists.');
+  }
+
   const result = await query(
-    `INSERT INTO courts (code, name, address, court_type, surface_type, base_price_per_hour, facilities)
-     VALUES (:code, :name, :address, :type, :surfaceType, :basePricePerHour, :facilities)`,
+    `INSERT INTO courts (branch_id, code, name, address, court_type, surface_type, base_price_per_hour, facilities)
+     VALUES (:branchId, :code, :name, :address, :type, :surfaceType, :basePricePerHour, :facilities)`,
     {
+      branchId: safeBranchId,
       code,
       name,
       address,
@@ -177,10 +274,29 @@ async function create({ code, name, address, type, surfaceType = 'standard', bas
   return findById(result.insertId);
 }
 
-async function update(id, { code, name, address, type, surfaceType = 'standard', basePricePerHour = 160000, status = 'available', facilities = [] }) {
+async function update(
+  id,
+  {
+    branchId,
+    code,
+    name,
+    address,
+    type,
+    surfaceType = 'standard',
+    basePricePerHour = 160000,
+    status = 'available',
+    facilities = [],
+  },
+) {
+  const safeBranchId = branchId || await getDefaultBranchId();
+  if (!safeBranchId) {
+    throw new Error('No active branch exists.');
+  }
+
   await query(
     `UPDATE courts
-     SET code = :code,
+     SET branch_id = :branchId,
+         code = :code,
          name = :name,
          address = :address,
          court_type = :type,
@@ -191,6 +307,7 @@ async function update(id, { code, name, address, type, surfaceType = 'standard',
      WHERE id = :id`,
     {
       id,
+      branchId: safeBranchId,
       code,
       name,
       address,
@@ -216,7 +333,7 @@ async function availability(courtId, date) {
   }
 
   const slotMinutes = detail.settings?.slotMinutes || 60;
-  const slots = buildSlots(detail.settings?.openTime || '05:00', detail.settings?.closeTime || '22:00', slotMinutes)
+  const slots = buildSlots(detail.branch?.openTime || detail.settings?.openTime || '05:00', detail.branch?.closeTime || detail.settings?.closeTime || '22:00', slotMinutes)
     .filter((slot) => isFutureSlot(date, slot.startTime));
   const occupiedRows = await query(
     `SELECT bs.start_time, bs.end_time, b.booking_status AS status
@@ -243,6 +360,7 @@ async function availability(courtId, date) {
 
   return {
     courtId: detail.id,
+    branchId: detail.branchId,
     date,
     slots: slots.map((slot) => ({
       ...slot,
@@ -270,9 +388,9 @@ function buildSlots(openTime, closeTime, slotMinutes) {
 
 function statusLabel(status) {
   const labels = {
-    available: 'Đang hoạt động',
-    maintenance: 'Đang bảo trì',
-    inactive: 'Tạm ngưng',
+    available: 'Dang hoat dong',
+    maintenance: 'Dang bao tri',
+    inactive: 'Tam ngung',
   };
 
   return labels[status] || status;
@@ -323,6 +441,7 @@ module.exports = {
   create,
   findById,
   list,
+  listBranches,
   remove,
   update,
 };

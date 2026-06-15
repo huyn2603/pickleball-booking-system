@@ -18,6 +18,7 @@ function canManageCourts(req, res) {
 }
 
 function normalizeCourtPayload(body) {
+  const branchId = Number(body?.branchId || body?.branch_id || 0) || null;
   const code = String(body?.code || '').trim().toUpperCase();
   const name = String(body?.name || '').trim();
   const address = String(body?.address || '').trim();
@@ -36,7 +37,7 @@ function normalizeCourtPayload(body) {
       .map((item) => item.trim())
       .filter(Boolean);
 
-  return { code, name, address, type, surfaceType, status, basePricePerHour, facilities };
+  return { branchId, code, name, address, type, surfaceType, status, basePricePerHour, facilities };
 }
 
 function validateCourtPayload(payload) {
@@ -54,11 +55,12 @@ function validateCourtPayload(payload) {
 async function listCourts(req, res) {
   try {
     const type = req.query.type || 'all';
+    const branchId = Number(req.query.branchId || req.query.branch_id || 0) || null;
     if (!['all', 'indoor', 'outdoor'].includes(type)) {
       return sendError(res, 400, 'Loai san khong hop le.');
     }
 
-    const result = await Court.list({ type });
+    const result = await Court.list({ type, branchId });
     return res.json({ success: true, ...result });
   } catch (error) {
     console.error('List courts error:', error);

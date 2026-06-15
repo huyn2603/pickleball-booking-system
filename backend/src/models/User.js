@@ -12,6 +12,9 @@ function mapUser(row) {
     phone: row.phone,
     password: row.password,
     avatarUrl: row.avatar_url,
+    branchId: row.branch_id,
+    branchCode: row.branch_code,
+    branchName: row.branch_name,
     role: row.role_code,
     status: row.status,
     emailVerifiedAt: row.email_verified_at,
@@ -38,14 +41,18 @@ const baseSelect = `
     u.phone,
     u.password,
     u.avatar_url,
+    u.branch_id,
     u.status,
     u.email_verified_at,
     u.last_login_at,
     u.created_at,
     u.updated_at,
-    r.code AS role_code
+    r.code AS role_code,
+    b.code AS branch_code,
+    b.name AS branch_name
   FROM users u
   JOIN roles r ON r.id = u.role_id
+  LEFT JOIN branches b ON b.id = u.branch_id
 `;
 
 async function findByEmail(email) {
@@ -86,6 +93,7 @@ async function create({
   phone = '',
   password,
   avatarUrl = null,
+  branchId = null,
   role = 'Customer',
   status = 'Active',
   emailVerifiedAt = null,
@@ -102,6 +110,7 @@ async function create({
       phone,
       password,
       avatar_url,
+      branch_id,
       role_id,
       status,
       email_verified_at
@@ -112,6 +121,7 @@ async function create({
       :phone,
       :password,
       :avatarUrl,
+      :branchId,
       :roleId,
       :status,
       :emailVerifiedAt
@@ -122,6 +132,7 @@ async function create({
       phone,
       password,
       avatarUrl,
+      branchId,
       roleId,
       status,
       emailVerifiedAt,

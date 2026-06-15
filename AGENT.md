@@ -15,13 +15,13 @@ Persona:
 
 ## 2. Project Scope
 
-Du an la he thong dat san pickleball truc tuyen cho **mot san/co so tai Ha Noi**.
+Du an la he thong dat san pickleball truc tuyen cho **nhieu chi nhanh nho tai Ha Noi**.
 
 Pham vi:
 
-- Khong quan ly nhieu khu vuc.
-- Khong quan ly nhieu chi nhanh.
-- Chi quan ly mot co so pickleball tai Ha Noi.
+- Khong quan ly nhieu tinh/thanh pho, chi tap trung tai Ha Noi.
+- Co quan ly nhieu chi nhanh nho trong Ha Noi.
+- Moi chi nhanh co nhieu san con.
 - Nguoi dung xem lich trong, dat san, thanh toan, huy lich, xem lich su dat san.
 - Staff/Admin quan ly lich dat san, trang thai san, san pham thue kem, thanh toan va bao cao co ban.
 
@@ -63,7 +63,7 @@ Chi lam khi user yeu cau ro rang:
 - Sua `.git/`.
 - Dua secret/API key/password production vao repo.
 - Doi stack cong nghe.
-- Them multi-branch/multi-region/multi-tenant.
+- Them multi-region/multi-tenant ngoai pham vi Ha Noi.
 
 ## 6. Architecture Rules
 
@@ -84,12 +84,13 @@ Frontend:
 
 ## 7. Database Rules
 
-Database chi cho mot co so:
+Database quan ly nhieu chi nhanh nho tai Ha Noi:
 
-- Dung `settings` cho thong tin co so.
-- Dung `courts` cho cac san con.
-- Khong dung `branches`, `clubs`, `regions`.
-- Khong them `branch_id` vao bang moi neu khong co quyet dinh scope moi.
+- Dung `settings` cho cau hinh chung toan he thong.
+- Dung `branches` cho tung chi nhanh.
+- Dung `courts.branch_id` de gan san voi chi nhanh.
+- Dung `users.branch_id` cho Staff/Owner phu trach chi nhanh neu can.
+- Khong dung `clubs`, `regions` hoac multi-tenant fields.
 
 Quy tac du lieu:
 
@@ -162,7 +163,7 @@ Quy tac du lieu:
 
 - [ ] Noi dung dung domain pickleball, khong con WMS.
 - [ ] Noi dung dung stack React + Node.js + MySQL.
-- [ ] Khong them multi-branch/multi-region.
+- [ ] Scope chi nhanh tai Ha Noi duoc dong bo giua docs, SQL va backend.
 - [ ] Khong expose password trong response.
 - [ ] Register chi chap nhan `@gmail.com`.
 - [ ] File SQL import duoc bang MySQL Workbench.
@@ -172,10 +173,10 @@ Quy tac du lieu:
 
 - Viet ngan gon, ro file da sua.
 - Neu khong chay duoc test/import DB do thieu password MySQL, bao ro.
-- Neu thay yeu cau mau thuan voi scope mot co so Ha Noi, hoi lai truoc khi mo rong.
+- Neu thay yeu cau vuot khoi scope nhieu chi nhanh tai Ha Noi, hoi lai truoc khi mo rong.
 
 ## 14. Current Sprint Context
 
 Sprint: Sprint 1  
 Focus: Auth, database schema, court schedule, booking flow co ban  
-Active project: Pickleball Booking System for one Hanoi venue
+Active project: Pickleball Booking System for small Hanoi branches

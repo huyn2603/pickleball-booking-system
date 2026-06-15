@@ -447,6 +447,7 @@ async function createManagedAccount(req, res) {
     const cleanEmail = normalizeEmail(req.body?.email);
     const phone = String(req.body?.phone || '').trim();
     const password = String(req.body?.password || '123456');
+    const branchId = Number(req.body?.branchId || req.body?.branch_id || 0) || null;
 
     if (!fullName || !cleanEmail || !phone || !password) {
       return sendError(res, 400, 'Vui long nhap day du ho ten, email, so dien thoai va mat khau.');
@@ -471,6 +472,7 @@ async function createManagedAccount(req, res) {
       phone,
       password: storePassword(password),
       avatarUrl: req.body?.avatarUrl ? String(req.body.avatarUrl) : null,
+      branchId,
       role,
       status: 'Active',
     });

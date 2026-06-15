@@ -1,5 +1,5 @@
 -- Pickleball Booking System - MySQL Workbench schema
--- Scope: one pickleball venue in Ha Noi, no branches/regions.
+-- Scope: multiple small pickleball branches in Ha Noi, no regions/multi-tenant.
 -- Target: MySQL 8.0+
 
 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
@@ -33,6 +33,25 @@ CREATE TABLE settings (
   CONSTRAINT chk_settings_hold CHECK (hold_minutes BETWEEN 1 AND 15)
 ) ENGINE=InnoDB;
 
+CREATE TABLE branches (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  code VARCHAR(30) NOT NULL,
+  name VARCHAR(150) NOT NULL,
+  district VARCHAR(100) NOT NULL,
+  address VARCHAR(255) NOT NULL,
+  phone VARCHAR(30) NULL,
+  email VARCHAR(150) NULL,
+  open_time TIME NOT NULL DEFAULT '05:00:00',
+  close_time TIME NOT NULL DEFAULT '22:00:00',
+  status ENUM('active','maintenance','inactive') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_branches_code (code),
+  KEY idx_branches_status_district (status, district),
+  CONSTRAINT chk_branches_time CHECK (open_time < close_time)
+) ENGINE=InnoDB;
+
 CREATE TABLE roles (
   id TINYINT UNSIGNED NOT NULL AUTO_INCREMENT,
   code VARCHAR(40) NOT NULL,
@@ -49,6 +68,7 @@ CREATE TABLE users (
   phone VARCHAR(30) NOT NULL,
   password VARCHAR(255) NOT NULL,
   avatar_url LONGTEXT NULL,
+  branch_id BIGINT UNSIGNED NULL,
   role_id TINYINT UNSIGNED NOT NULL,
   status ENUM('Active','Inactive','Blocked','Unverified') NOT NULL DEFAULT 'Active',
   email_verified_at DATETIME NULL,
@@ -58,7 +78,9 @@ CREATE TABLE users (
   PRIMARY KEY (id),
   UNIQUE KEY uq_users_email (email),
   KEY idx_users_phone (phone),
+  KEY idx_users_branch_role_status (branch_id, role_id, status),
   KEY idx_users_role_status (role_id, status),
+  CONSTRAINT fk_users_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
   CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id),
   CONSTRAINT chk_users_gmail CHECK (email LIKE '%@gmail.com')
 ) ENGINE=InnoDB;
@@ -83,6 +105,7 @@ CREATE TABLE password_reset_otps (
 
 CREATE TABLE courts (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  branch_id BIGINT UNSIGNED NOT NULL,
   code VARCHAR(30) NOT NULL,
   name VARCHAR(120) NOT NULL,
   address VARCHAR(255) NOT NULL,
@@ -96,14 +119,17 @@ CREATE TABLE courts (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_courts_code (code),
+  UNIQUE KEY uq_courts_branch_code (branch_id, code),
   KEY idx_courts_status (status),
+  KEY idx_courts_branch_status (branch_id, status),
   KEY idx_courts_type_surface (court_type, surface_type),
+  CONSTRAINT fk_courts_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
   CONSTRAINT chk_courts_base_price CHECK (base_price_per_hour >= 0)
 ) ENGINE=InnoDB;
 
 CREATE TABLE price_rules (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  branch_id BIGINT UNSIGNED NULL,
   court_id BIGINT UNSIGNED NULL,
   name VARCHAR(120) NOT NULL,
   day_of_week TINYINT UNSIGNED NULL,
@@ -117,7 +143,8 @@ CREATE TABLE price_rules (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  KEY idx_price_rules_lookup (court_id, day_of_week, is_active),
+  KEY idx_price_rules_lookup (branch_id, court_id, day_of_week, is_active),
+  CONSTRAINT fk_price_rules_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
   CONSTRAINT fk_price_rules_court FOREIGN KEY (court_id) REFERENCES courts(id),
   CONSTRAINT chk_price_rules_time CHECK (start_time < end_time),
   CONSTRAINT chk_price_rules_dow CHECK (day_of_week IS NULL OR day_of_week BETWEEN 1 AND 7)
@@ -195,6 +222,7 @@ CREATE TABLE bookings (
   booking_code VARCHAR(50) NOT NULL,
   customer_id BIGINT UNSIGNED NOT NULL,
   staff_id BIGINT UNSIGNED NULL,
+  branch_id BIGINT UNSIGNED NOT NULL,
   court_id BIGINT UNSIGNED NOT NULL,
   promotion_id BIGINT UNSIGNED NULL,
   voucher_id BIGINT UNSIGNED NULL,
@@ -215,10 +243,12 @@ CREATE TABLE bookings (
   UNIQUE KEY uq_bookings_code (booking_code),
   KEY idx_bookings_customer_created (customer_id, created_at),
   KEY idx_bookings_staff_date (staff_id, booking_date),
+  KEY idx_bookings_branch_date_status (branch_id, booking_date, booking_status),
   KEY idx_bookings_court_date_status (court_id, booking_date, booking_status),
   KEY idx_bookings_payment_status (payment_status, booking_status),
   CONSTRAINT fk_bookings_customer FOREIGN KEY (customer_id) REFERENCES users(id),
   CONSTRAINT fk_bookings_staff FOREIGN KEY (staff_id) REFERENCES users(id),
+  CONSTRAINT fk_bookings_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
   CONSTRAINT fk_bookings_court FOREIGN KEY (court_id) REFERENCES courts(id),
   CONSTRAINT fk_bookings_promotion FOREIGN KEY (promotion_id) REFERENCES promotions(id),
   CONSTRAINT fk_bookings_voucher FOREIGN KEY (voucher_id) REFERENCES vouchers(id),
@@ -228,6 +258,7 @@ CREATE TABLE bookings (
 CREATE TABLE booking_slots (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   booking_id BIGINT UNSIGNED NOT NULL,
+  branch_id BIGINT UNSIGNED NOT NULL,
   court_id BIGINT UNSIGNED NOT NULL,
   booking_date DATE NOT NULL,
   start_time TIME NOT NULL,
@@ -236,8 +267,9 @@ CREATE TABLE booking_slots (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_booking_slots_booking (booking_id),
-  KEY idx_booking_slots_lookup (court_id, booking_date, start_time, end_time),
+  KEY idx_booking_slots_lookup (branch_id, court_id, booking_date, start_time, end_time),
   CONSTRAINT fk_booking_slots_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+  CONSTRAINT fk_booking_slots_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
   CONSTRAINT fk_booking_slots_court FOREIGN KEY (court_id) REFERENCES courts(id),
   CONSTRAINT chk_booking_slots_time CHECK (start_time < end_time)
 ) ENGINE=InnoDB;
@@ -246,6 +278,7 @@ CREATE TABLE slot_holds (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   hold_code VARCHAR(50) NOT NULL,
   customer_id BIGINT UNSIGNED NOT NULL,
+  branch_id BIGINT UNSIGNED NOT NULL,
   court_id BIGINT UNSIGNED NOT NULL,
   booking_date DATE NOT NULL,
   start_time TIME NOT NULL,
@@ -255,9 +288,10 @@ CREATE TABLE slot_holds (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_slot_holds_code (hold_code),
-  KEY idx_slot_holds_lookup (court_id, booking_date, start_time, end_time, status),
+  KEY idx_slot_holds_lookup (branch_id, court_id, booking_date, start_time, end_time, status),
   KEY idx_slot_holds_expires (expires_at, status),
   CONSTRAINT fk_slot_holds_customer FOREIGN KEY (customer_id) REFERENCES users(id),
+  CONSTRAINT fk_slot_holds_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
   CONSTRAINT fk_slot_holds_court FOREIGN KEY (court_id) REFERENCES courts(id),
   CONSTRAINT chk_slot_holds_time CHECK (start_time < end_time)
 ) ENGINE=InnoDB;
@@ -462,6 +496,11 @@ INSERT INTO roles (code, name, description) VALUES
 INSERT INTO settings (venue_name, city, address, phone, email)
 VALUES ('Pickleball Ha Noi', 'Ha Noi', 'Ha Noi, Viet Nam', '0900000000', 'pickleballhanoi@gmail.com');
 
+INSERT INTO branches (code, name, district, address, phone, email) VALUES
+  ('HN-TAYHO', 'Pickleball Tay Ho', 'Tay Ho', '12 Trinh Cong Son, Tay Ho, Ha Noi', '0900000101', 'tayho.pickleball@gmail.com'),
+  ('HN-CAUGIAY', 'Pickleball Cau Giay', 'Cau Giay', '34 Nguyen Van Huyen, Cau Giay, Ha Noi', '0900000102', 'caugiay.pickleball@gmail.com'),
+  ('HN-HADONG', 'Pickleball Ha Dong', 'Ha Dong', '88 To Huu, Ha Dong, Ha Noi', '0900000103', 'hadong.pickleball@gmail.com');
+
 INSERT INTO users (full_name, email, phone, password, avatar_url, role_id, status, email_verified_at) VALUES
   ('System Admin', 'pickleball.admin@gmail.com', '0900000001', '123456', 'https://ui-avatars.com/api/?name=System+Admin&background=111827&color=ffffff', 1, 'Active', NOW()),
   ('Venue Owner', 'pickleball.owner@gmail.com', '0900000002', '123456', 'https://ui-avatars.com/api/?name=Venue+Owner&background=0f766e&color=ffffff', 2, 'Active', NOW()),
@@ -488,15 +527,24 @@ INSERT INTO users (full_name, email, phone, password, avatar_url, role_id, statu
   ('Customer Dang Oanh', 'pickleball.customer09@gmail.com', '0922000009', '123456', 'https://ui-avatars.com/api/?name=Customer+Dang+Oanh&background=16a34a&color=ffffff', 4, 'Active', NOW()),
   ('Customer Ngo Phuc', 'pickleball.customer10@gmail.com', '0922000010', '123456', 'https://ui-avatars.com/api/?name=Customer+Ngo+Phuc&background=16a34a&color=ffffff', 4, 'Active', NOW());
 
-INSERT INTO courts (code, name, address, court_type, surface_type, base_price_per_hour, facilities) VALUES
-  ('A1', 'San A1', '12 Trinh Cong Son, Tay Ho, Ha Noi', 'indoor', 'standard', 160000, JSON_ARRAY('lighting','parking','locker')),
-  ('A2', 'San A2', '12 Trinh Cong Son, Tay Ho, Ha Noi', 'indoor', 'standard', 160000, JSON_ARRAY('lighting','parking')),
-  ('B1', 'San B1', '34 Nguyen Van Huyen, Cau Giay, Ha Noi', 'outdoor', 'synthetic', 140000, JSON_ARRAY('lighting','parking'));
+UPDATE users
+SET branch_id = CASE
+  WHEN email IN ('pickleball.owner@gmail.com', 'pickleball.staff@gmail.com', 'pickleball.staff01@gmail.com', 'pickleball.staff02@gmail.com', 'pickleball.staff03@gmail.com') THEN 1
+  WHEN email IN ('pickleball.staff04@gmail.com', 'pickleball.staff05@gmail.com', 'pickleball.staff06@gmail.com') THEN 2
+  WHEN email IN ('pickleball.staff07@gmail.com', 'pickleball.staff08@gmail.com', 'pickleball.staff09@gmail.com', 'pickleball.staff10@gmail.com') THEN 3
+  ELSE branch_id
+END;
 
-INSERT INTO price_rules (court_id, name, day_of_week, start_time, end_time, price_per_slot, priority) VALUES
-  (NULL, 'Off peak', NULL, '05:00:00', '17:00:00', 80000, 100),
-  (NULL, 'Peak evening', NULL, '17:00:00', '21:00:00', 120000, 10),
-  (NULL, 'Late off peak', NULL, '21:00:00', '22:00:00', 80000, 100);
+INSERT INTO courts (branch_id, code, name, address, court_type, surface_type, base_price_per_hour, facilities) VALUES
+  (1, 'A1', 'San A1', '12 Trinh Cong Son, Tay Ho, Ha Noi', 'indoor', 'standard', 160000, JSON_ARRAY('lighting','parking','locker')),
+  (1, 'A2', 'San A2', '12 Trinh Cong Son, Tay Ho, Ha Noi', 'indoor', 'standard', 160000, JSON_ARRAY('lighting','parking')),
+  (2, 'B1', 'San B1', '34 Nguyen Van Huyen, Cau Giay, Ha Noi', 'outdoor', 'synthetic', 140000, JSON_ARRAY('lighting','parking')),
+  (3, 'C1', 'San C1', '88 To Huu, Ha Dong, Ha Noi', 'indoor', 'premium', 180000, JSON_ARRAY('lighting','parking','locker','shower'));
+
+INSERT INTO price_rules (branch_id, court_id, name, day_of_week, start_time, end_time, price_per_slot, priority) VALUES
+  (NULL, NULL, 'Off peak', NULL, '05:00:00', '17:00:00', 80000, 100),
+  (NULL, NULL, 'Peak evening', NULL, '17:00:00', '21:00:00', 120000, 10),
+  (NULL, NULL, 'Late off peak', NULL, '21:00:00', '22:00:00', 80000, 100);
 
 INSERT INTO categories (name, description) VALUES
   ('Racket', 'Rental rackets'),
