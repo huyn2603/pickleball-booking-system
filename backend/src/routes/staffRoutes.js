@@ -5,6 +5,8 @@ const requireAuth = require('../middleware/auth');
 const router = express.Router();
 
 router.get('/dashboard', requireAuth, staffController.dashboard);
+router.post('/bookings/:id/confirm', requireAuth, staffController.confirmBooking);
+router.post('/bookings/:id/cancel', requireAuth, staffController.cancelBooking);
 router.post('/bookings/:id/check-in', requireAuth, staffController.checkIn);
 router.post('/bookings/:id/check-out', requireAuth, staffController.checkOut);
 router.post('/bookings/:id/payment', requireAuth, staffController.recordPayment);

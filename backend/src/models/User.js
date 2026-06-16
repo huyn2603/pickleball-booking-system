@@ -55,6 +55,21 @@ const baseSelect = `
   LEFT JOIN branches b ON b.id = u.branch_id
 `;
 
+function buildRoleFilter(roles) {
+  const safeRoles = Array.isArray(roles) ? roles.filter(Boolean) : [];
+  const params = {};
+  const placeholders = safeRoles.map((role, index) => {
+    const key = `role${index}`;
+    params[key] = role;
+    return `:${key}`;
+  });
+
+  return {
+    params,
+    sql: placeholders.length ? placeholders.join(', ') : "''",
+  };
+}
+
 async function findByEmail(email) {
   const rows = await query(
     `${baseSelect}
@@ -171,6 +186,21 @@ async function updateProfile(id, { fullName, email, phone, avatarUrl = null }) {
   return findById(id);
 }
 
+async function updateManagedAccount(id, { fullName, email, phone, branchId = null, status = 'Active' }) {
+  await query(
+    `UPDATE users
+     SET full_name = :fullName,
+         email = :email,
+         phone = :phone,
+         branch_id = :branchId,
+         status = :status
+     WHERE id = :id`,
+    { id, fullName, email, phone, branchId, status },
+  );
+
+  return findById(id);
+}
+
 async function updateStatus(id, status) {
   await query(
     'UPDATE users SET status = :status WHERE id = :id',
@@ -181,11 +211,12 @@ async function updateStatus(id, status) {
 }
 
 async function listByRoles(roles) {
+  const roleFilter = buildRoleFilter(roles);
   const rows = await query(
     `${baseSelect}
-     WHERE r.code IN (:roles)
+     WHERE r.code IN (${roleFilter.sql})
      ORDER BY u.created_at DESC`,
-    { roles },
+    roleFilter.params,
   );
 
   return rows.map(mapUser);
@@ -202,23 +233,62 @@ async function listBanned() {
 }
 
 async function removeByRoles(id, roles) {
+  const roleFilter = buildRoleFilter(roles);
   await query(
     `DELETE u FROM users u
      JOIN roles r ON r.id = u.role_id
-     WHERE u.id = :id AND r.code IN (:roles)`,
-    { id, roles },
+     WHERE u.id = :id AND r.code IN (${roleFilter.sql})`,
+    { id, ...roleFilter.params },
   );
+}
+
+async function listBookingHistory(id) {
+  const rows = await query(
+    `SELECT
+       b.id,
+       b.booking_code,
+       b.booking_date,
+       b.total_amount,
+       b.payment_status,
+       b.booking_status,
+       c.code AS court_code,
+       c.name AS court_name,
+       MIN(bs.start_time) AS start_time,
+       MAX(bs.end_time) AS end_time
+     FROM bookings b
+     JOIN courts c ON c.id = b.court_id
+     LEFT JOIN booking_slots bs ON bs.booking_id = b.id
+     WHERE b.customer_id = :id
+     GROUP BY b.id
+     ORDER BY b.booking_date DESC, b.created_at DESC`,
+    { id },
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    bookingCode: row.booking_code,
+    bookingDate: row.booking_date,
+    courtCode: row.court_code,
+    courtName: row.court_name,
+    startTime: row.start_time ? String(row.start_time).slice(0, 5) : '',
+    endTime: row.end_time ? String(row.end_time).slice(0, 5) : '',
+    totalAmount: row.total_amount,
+    paymentStatus: row.payment_status,
+    bookingStatus: row.booking_status,
+  }));
 }
 
 module.exports = {
   create,
   findByEmail,
   findById,
+  listBookingHistory,
   listBanned,
   listByRoles,
   removeByRoles,
   toSafeObject,
   updateLastLogin,
+  updateManagedAccount,
   updatePassword,
   updateProfile,
   updateStatus,

@@ -73,6 +73,44 @@ async function checkIn(req, res) {
   }
 }
 
+async function confirmBooking(req, res) {
+  try {
+    if (!requireStaffRole(req, res)) {
+      return null;
+    }
+
+    const bookingId = parseId(req.params.id);
+    if (!bookingId) {
+      return sendError(res, 400, 'Ma booking khong hop le.');
+    }
+
+    const booking = await Staff.confirmBooking(bookingId, req.user.id);
+    return res.json({ success: true, booking, message: 'Da xac nhan booking.' });
+  } catch (error) {
+    console.error('Staff confirm booking error:', error);
+    return sendError(res, error.status || 500, error.message || 'Loi may chu khi xac nhan booking.');
+  }
+}
+
+async function cancelBooking(req, res) {
+  try {
+    if (!requireStaffRole(req, res)) {
+      return null;
+    }
+
+    const bookingId = parseId(req.params.id);
+    if (!bookingId) {
+      return sendError(res, 400, 'Ma booking khong hop le.');
+    }
+
+    const booking = await Staff.cancelBooking(bookingId, req.user.id, req.body?.cancelReason);
+    return res.json({ success: true, booking, message: 'Da huy booking.' });
+  } catch (error) {
+    console.error('Staff cancel booking error:', error);
+    return sendError(res, error.status || 500, error.message || 'Loi may chu khi huy booking.');
+  }
+}
+
 async function checkOut(req, res) {
   try {
     if (!requireStaffRole(req, res)) {
@@ -147,8 +185,10 @@ async function updateAddonStock(req, res) {
 }
 
 module.exports = {
+  cancelBooking,
   checkIn,
   checkOut,
+  confirmBooking,
   dashboard,
   recordPayment,
   updateAddonStock,

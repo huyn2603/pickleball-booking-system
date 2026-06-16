@@ -99,12 +99,65 @@ button {
 
 .nav-center,
 .nav-actions {
-  gap: 18px;
+  gap: 12px;
   font-weight: 700;
 }
 
 .nav-center {
+  flex-wrap: wrap;
+  justify-content: center;
   color: #4b4b4d;
+  font-size: 14px;
+}
+
+.sport-menu-wrap {
+  position: relative;
+}
+
+.sport-menu-trigger {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 4px;
+  padding: 7px 10px;
+  background: #dcfbe6;
+  color: var(--success);
+  font-weight: 900;
+}
+
+.sport-menu {
+  width: 150px;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  display: grid;
+  gap: 2px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 8px 0;
+  background: var(--canvas);
+  box-shadow: 0 16px 34px rgba(17, 17, 17, 0.14);
+}
+
+.sport-menu button {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 5px 12px;
+  background: transparent;
+  color: #3f3f46;
+  font-weight: 700;
+  text-align: left;
+}
+
+.sport-menu button:hover,
+.sport-menu button:focus-visible {
+  background: #f3f4f6;
 }
 
 .nav-outline {
@@ -481,7 +534,7 @@ select:focus {
 
 .owner-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
 }
 
@@ -502,6 +555,11 @@ select:focus {
 
 .management-grid.two-col {
   grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+}
+
+.management-grid.admin-accounts-grid {
+  width: min(1320px, calc(100% - 48px));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .staff-stat-grid {
@@ -1563,6 +1621,10 @@ select:focus {
   gap: 0;
 }
 
+.inline-search {
+  margin: 16px 0 4px;
+}
+
 .account-row {
   display: flex;
   align-items: center;
@@ -1621,6 +1683,7 @@ select:focus {
   .identity-list,
   .management-grid,
   .management-grid.two-col,
+  .management-grid.admin-accounts-grid,
   .category-strip {
     grid-template-columns: 1fr 1fr;
   }
@@ -1693,6 +1756,7 @@ select:focus {
   .identity-list,
   .management-grid,
   .management-grid.two-col,
+  .management-grid.admin-accounts-grid,
   .category-strip {
     grid-template-columns: 1fr;
   }

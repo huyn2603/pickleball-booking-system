@@ -90,8 +90,10 @@ function App() {
   const [session, setSession] = useState(readStoredSession)
   const [page, setPage] = useState('home')
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
+  const [sportMenuOpen, setSportMenuOpen] = useState(false)
   const [avatarSrc, setAvatarSrc] = useState(() => readStoredAvatar(readStoredSession()?.user))
   const [courts, setCourts] = useState([])
+  const [branches, setBranches] = useState([])
   const [courtsLoading, setCourtsLoading] = useState(false)
   const [courtView, setCourtView] = useState('list')
   const [courtFilter, setCourtFilter] = useState('all')
@@ -107,6 +109,7 @@ function App() {
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('')
   const [accounts, setAccounts] = useState(null)
+  const [customerSearch, setCustomerSearch] = useState('')
   const [forgotPasswordStep, setForgotPasswordStep] = useState('request')
   const [resetToken, setResetToken] = useState('')
   const [accountsLoading, setAccountsLoading] = useState(false)
@@ -121,6 +124,7 @@ function App() {
     otp: '',
   })
   const [courtForm, setCourtForm] = useState({
+    branchId: '',
     code: '',
     name: '',
     address: '',
@@ -218,7 +222,7 @@ function App() {
   }, [page, isForgotPassword, isRegister, googleReady])
 
   useEffect(() => {
-    if (session && role === 'Staff') {
+    if (session && (role === 'Staff' || role === 'Owner')) {
       fetchStaffDashboard()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -245,9 +249,14 @@ function App() {
     }))
   }
 
+  function updateCustomerSearch(event) {
+    setCustomerSearch(event.target.value)
+  }
+
   function resetCourtForm() {
     setEditingCourtId(null)
     setCourtForm({
+      branchId: '',
       code: '',
       name: '',
       address: '',
@@ -281,18 +290,13 @@ function App() {
   function showHome() {
     setPage('home')
     setAvatarMenuOpen(false)
+    setSportMenuOpen(false)
     resetNotice()
   }
 
-  function showDashboard() {
-    setPage('dashboard')
-    setEditingProfile(false)
+  function showOwnerFeature(nextView) {
     setAvatarMenuOpen(false)
-    resetNotice()
-  }
-
-  function showManagement() {
-    setAvatarMenuOpen(false)
+    setSportMenuOpen(false)
     resetNotice()
 
     if (!session) {
@@ -300,10 +304,17 @@ function App() {
       return
     }
 
-    showDashboard()
+    if (role === 'Owner') {
+      setOwnerView(nextView)
+    }
+
+    setPage('dashboard')
+    setEditingProfile(false)
   }
+
   function showCourts() {
     setAvatarMenuOpen(false)
+    setSportMenuOpen(false)
     resetNotice()
 
     if (!session) {
@@ -313,6 +324,13 @@ function App() {
 
     setPage('courts')
     fetchCourts()
+  }
+
+  function chooseCourtType(type) {
+    setSportMenuOpen(false)
+    setCourtFilter(type)
+    setCourtPage(1)
+    showCourts()
   }
 
   function showCourtDetail(court) {
@@ -349,6 +367,7 @@ function App() {
         },
         body: JSON.stringify({
           ...courtForm,
+          branchId: Number(courtForm.branchId || 0) || null,
           basePricePerHour: Number(courtForm.basePricePerHour || 0),
         }),
       })
@@ -374,6 +393,7 @@ function App() {
     setEditingCourtId(court.id)
     setOwnerView('courts')
     setCourtForm({
+      branchId: court.branchId || '',
       code: court.code || '',
       name: court.name || '',
       address: court.address || '',
@@ -500,6 +520,7 @@ function App() {
       }
 
       setCourts(data.courts || [])
+      setBranches(data.branches || [])
       setCourtPage(1)
     } catch (error) {
       setMessage(error.message)
@@ -566,6 +587,8 @@ function App() {
 
   async function handleStaffBookingAction(booking, action, extra = {}) {
     const endpoints = {
+      confirm: `/staff/bookings/${booking.id}/confirm`,
+      cancel: `/staff/bookings/${booking.id}/cancel`,
       checkIn: `/staff/bookings/${booking.id}/check-in`,
       checkOut: `/staff/bookings/${booking.id}/check-out`,
       payment: `/staff/bookings/${booking.id}/payment`,
@@ -580,7 +603,7 @@ function App() {
           Authorization: `Bearer ${session.token}`,
           'Content-Type': 'application/json',
         },
-        body: action === 'payment' ? JSON.stringify(extra) : undefined,
+        body: ['payment', 'cancel'].includes(action) ? JSON.stringify(extra) : undefined,
       })
       const data = await response.json()
 
@@ -839,7 +862,52 @@ function App() {
 
   async function manageAccount(user, action) {
     const isDelete = action === 'delete'
+    const isEdit = action === 'edit'
     const willUnban = action === 'unban'
+    if (isEdit) {
+      const fullName = window.prompt('Họ tên', user.fullName || '')
+      if (fullName === null) {
+        return
+      }
+      const email = window.prompt('Email', user.email || '')
+      if (email === null) {
+        return
+      }
+      const phone = window.prompt('Số điện thoại', user.phone || '')
+      if (phone === null) {
+        return
+      }
+
+      setLoading(true)
+      resetNotice()
+
+      try {
+        const response = await fetch(`${API_URL}/auth/accounts/${user.id}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ fullName, email, phone, branchId: user.branchId, status: user.status }),
+        })
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Không thể cập nhật tài khoản.')
+        }
+
+        setMessage('Đã cập nhật tài khoản.')
+        setMessageType('success')
+        await fetchAccounts()
+      } catch (error) {
+        setMessage(error.message)
+        setMessageType('error')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
     const accepted = isDelete
       ? window.confirm('Bạn có chắc chắn xóa tài khoản này không?')
       : true
@@ -869,6 +937,32 @@ function App() {
       setMessage(isDelete ? 'Đã xóa tài khoản.' : willUnban ? 'Đã mở ban tài khoản.' : 'Đã ban tài khoản.')
       setMessageType('success')
       await fetchAccounts()
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function viewCustomerHistory(user) {
+    setLoading(true)
+    resetNotice()
+
+    try {
+      const response = await fetch(`${API_URL}/auth/accounts/${user.id}/bookings`, {
+        headers: { Authorization: `Bearer ${session.token}` },
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể tải lịch sử đặt sân.')
+      }
+
+      const lines = (data.bookings || []).slice(0, 10).map((booking) => (
+        `${booking.bookingDate} | ${booking.courtCode} - ${booking.courtName} | ${booking.startTime || '--'}-${booking.endTime || '--'} | ${booking.bookingStatus} | ${formatFullMoney(booking.totalAmount)}`
+      ))
+      window.alert(lines.length ? lines.join('\n') : 'Khách hàng này chưa có lịch sử đặt sân.')
     } catch (error) {
       setMessage(error.message)
       setMessageType('error')
@@ -966,17 +1060,37 @@ function App() {
           <span>Pickleball</span>
         </button>
 
-        <div
-          className="nav-center"
-          onClick={(event) => {
-            if (event.target === event.currentTarget.children[2]) {
-              showManagement()
-            }
-          }}
-        >
+        <div className="nav-center">
           <button type="button" onClick={showCourts}>Tìm sân</button>
-          <button type="button">Loại sân</button>
-          <button type="button">Phần mềm quản lý</button>
+          <div className="sport-menu-wrap">
+            <button type="button" className="sport-menu-trigger" onClick={() => setSportMenuOpen((open) => !open)} aria-expanded={sportMenuOpen}>
+              Loại sân
+              <span aria-hidden="true">⌄</span>
+            </button>
+            {sportMenuOpen && (
+              <div className="sport-menu" role="menu">
+                {[
+                  ['🏟️', 'Sân ngoài trời', 'outdoor'],
+                  ['🏠', 'Sân trong nhà', 'indoor'],
+                ].map(([icon, label, type]) => (
+                  <button type="button" key={label} onClick={() => chooseCourtType(type)} role="menuitem">
+                    <span aria-hidden="true">{icon}</span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {role === 'Owner' && (
+            <>
+              <button type="button" onClick={() => showOwnerFeature('courts')}>Quản lý sân</button>
+              <button type="button" onClick={() => showOwnerFeature('bookings')}>Lịch đặt</button>
+              <button type="button" onClick={() => showOwnerFeature('customers')}>Khách hàng</button>
+              <button type="button" onClick={() => showOwnerFeature('staff')}>Nhân viên</button>
+              <button type="button" onClick={() => showOwnerFeature('services')}>Dịch vụ</button>
+              <button type="button" onClick={() => showOwnerFeature('revenue')}>Doanh thu</button>
+            </>
+          )}
         </div>
 
         <div className="nav-actions">
@@ -1295,19 +1409,28 @@ function App() {
             <ProfileCard user={session.user} />
           )}
 
-          {role === 'Admin' && <AdminAccounts accounts={accounts} accountsLoading={accountsLoading} loading={loading} onManage={manageAccount} />}
+          {role === 'Admin' && <AdminAccounts accounts={accounts} accountsLoading={accountsLoading} loading={loading} onManage={manageAccount} onRefresh={fetchAccounts} />}
           {role === 'Owner' && (
             <OwnerTools
               accounts={accounts}
               accountsLoading={accountsLoading}
               loading={loading}
               courts={courts}
+              branches={branches}
               courtsLoading={courtsLoading}
+              dashboard={staffDashboard}
+              dashboardLoading={staffLoading}
               ownerView={ownerView}
               onOwnerView={setOwnerView}
               onManage={manageAccount}
+              customerSearch={customerSearch}
+              onCustomerSearch={updateCustomerSearch}
+              onCustomerHistory={viewCustomerHistory}
               onRefresh={fetchAccounts}
               onRefreshCourts={fetchCourts}
+              onRefreshDashboard={fetchStaffDashboard}
+              onBookingAction={handleStaffBookingAction}
+              onAddonStock={handleAddonStock}
               courtForm={courtForm}
               editingCourtId={editingCourtId}
               onCourtField={updateCourtField}
@@ -1359,12 +1482,19 @@ function ProfileCard({ user }) {
   )
 }
 
-function AdminAccounts({ accounts, accountsLoading, loading, onManage }) {
+function AdminAccounts({ accounts, accountsLoading, loading, onManage, onRefresh }) {
   const roles = ['Customer', 'Owner', 'Staff']
 
   return (
-    <section className="management-grid" aria-label="Admin quản lý tài khoản">
-      <AccountGroup title="Tài khoản bị ban" users={accounts?.banned || []} empty="Chưa có tài khoản bị ban." loading={accountsLoading} />
+    <section className="management-grid admin-accounts-grid" aria-label="Admin quản lý tài khoản">
+      <AccountGroup
+        title="Tài khoản bị ban"
+        users={accounts?.banned || []}
+        empty="Chưa có tài khoản bị ban."
+        loading={accountsLoading}
+        headerAction={<button type="button" className="secondary-button small" onClick={onRefresh} disabled={accountsLoading}>Tải lại</button>}
+        actions={{ loading, onManage, allowBan: true, allowDelete: false }}
+      />
       {roles.map((role) => (
         <AccountGroup
           key={role}
@@ -1372,7 +1502,8 @@ function AdminAccounts({ accounts, accountsLoading, loading, onManage }) {
           users={accounts?.byRole?.[role] || []}
           empty={`Chưa có ${roleLabels[role]}.`}
           loading={accountsLoading}
-          actions={role === 'Customer' ? { loading, onManage } : null}
+          headerAction={<button type="button" className="secondary-button small" onClick={onRefresh} disabled={accountsLoading}>Tải lại</button>}
+          actions={{ loading, onManage, allowBan: true, allowDelete: true }}
         />
       ))}
     </section>
@@ -1440,12 +1571,21 @@ function OwnerTools({
   accountsLoading,
   loading,
   courts,
+  branches,
   courtsLoading,
+  dashboard,
+  dashboardLoading,
   ownerView,
   onOwnerView,
   onManage,
+  customerSearch,
+  onCustomerSearch,
+  onCustomerHistory,
   onRefresh,
   onRefreshCourts,
+  onRefreshDashboard,
+  onBookingAction,
+  onAddonStock,
   courtForm,
   editingCourtId,
   onCourtField,
@@ -1459,8 +1599,11 @@ function OwnerTools({
 }) {
   const ownerTabs = [
     { id: 'courts', label: 'Xem danh sách sân' },
+    { id: 'bookings', label: 'Lịch đặt sân' },
     { id: 'customers', label: 'Xem danh sách khách hàng' },
     { id: 'staff', label: 'Xem danh sách nhân viên' },
+    { id: 'services', label: 'Dịch vụ kèm' },
+    { id: 'revenue', label: 'Doanh thu' },
   ]
 
   return (
@@ -1475,20 +1618,26 @@ function OwnerTools({
 
       {ownerView === 'courts' && (
         <section className="management-grid two-col" aria-label="Danh sách sân">
-          <CourtEditor courtForm={courtForm} editingCourtId={editingCourtId} loading={loading} onCourtField={onCourtField} onAddCourt={onAddCourt} onCancelCourtEdit={onCancelCourtEdit} />
+          <CourtEditor branches={branches} courtForm={courtForm} editingCourtId={editingCourtId} loading={loading} onCourtField={onCourtField} onAddCourt={onAddCourt} onCancelCourtEdit={onCancelCourtEdit} />
           <CourtManagementList courts={courts} loading={loading} courtsLoading={courtsLoading} onRefresh={onRefreshCourts} onEditCourt={onEditCourt} onDeleteCourt={onDeleteCourt} />
         </section>
       )}
 
+      {ownerView === 'bookings' && (
+        <OwnerBookingPanel dashboard={dashboard} loading={dashboardLoading} onRefresh={onRefreshDashboard} onBookingAction={onBookingAction} />
+      )}
+
       {ownerView === 'customers' && (
         <section className="management-grid" aria-label="Danh sách khách hàng">
-          <AccountGroup
-            title="Danh sách khách hàng"
-            users={accounts?.byRole?.Customer || []}
-            empty="Database chưa có khách hàng."
-            loading={accountsLoading}
-            headerAction={<button type="button" className="secondary-button small" onClick={onRefresh} disabled={accountsLoading}>Tải lại</button>}
-            actions={{ loading, onManage, allowBan: true, allowDelete: true }}
+          <OwnerCustomerPanel
+            customers={accounts?.byRole?.Customer || []}
+            search={customerSearch}
+            loading={loading}
+            accountsLoading={accountsLoading}
+            onSearch={onCustomerSearch}
+            onManage={onManage}
+            onHistory={onCustomerHistory}
+            onRefresh={onRefresh}
           />
         </section>
       )}
@@ -1502,15 +1651,23 @@ function OwnerTools({
             empty="Database chưa có nhân viên."
             loading={accountsLoading}
             headerAction={<button type="button" className="secondary-button small" onClick={onRefresh} disabled={accountsLoading}>Tải lại</button>}
-            actions={{ loading, onManage, allowBan: false, allowDelete: true }}
+            actions={{ loading, onManage, allowBan: false, allowDelete: true, allowEdit: true }}
           />
         </section>
+      )}
+
+      {ownerView === 'services' && (
+        <OwnerServicesPanel addons={dashboard.addons || []} loading={dashboardLoading} onRefresh={onRefreshDashboard} onAddonStock={onAddonStock} />
+      )}
+
+      {ownerView === 'revenue' && (
+        <OwnerRevenuePanel dashboard={dashboard} loading={dashboardLoading} onRefresh={onRefreshDashboard} />
       )}
     </section>
   )
 }
 
-function CourtEditor({ courtForm, editingCourtId, loading, onCourtField, onAddCourt, onCancelCourtEdit }) {
+function CourtEditor({ branches, courtForm, editingCourtId, loading, onCourtField, onAddCourt, onCancelCourtEdit }) {
   return (
     <article className="feature-panel owner-court-form">
       <div className="panel-heading">
@@ -1518,6 +1675,15 @@ function CourtEditor({ courtForm, editingCourtId, loading, onCourtField, onAddCo
         <span>Owner</span>
       </div>
       <form onSubmit={onAddCourt}>
+        <label>
+          Chi nhánh
+          <select name="branchId" value={courtForm.branchId} onChange={onCourtField}>
+            <option value="">Chi nhánh mặc định</option>
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>{branch.name}</option>
+            ))}
+          </select>
+        </label>
         <Field name="code" label="Mã sân" value={courtForm.code} onChange={onCourtField} placeholder="A3" />
         <Field name="name" label="Tên sân" value={courtForm.name} onChange={onCourtField} placeholder="Sân A3" />
         <Field name="address" label="Địa chỉ sân" value={courtForm.address} onChange={onCourtField} placeholder="12 Trịnh Công Sơn, Tây Hồ, Hà Nội" />
@@ -1577,6 +1743,201 @@ function CourtManagementList({ courts, loading, courtsLoading, onRefresh, onEdit
             <div className="row-actions">
               <button type="button" className="secondary-button small" onClick={() => onEditCourt(court)} disabled={loading}>Sửa</button>
               <button type="button" className="danger-button small" onClick={() => onDeleteCourt(court)} disabled={loading}>Xóa</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function OwnerBookingPanel({ dashboard, loading, onRefresh, onBookingAction }) {
+  const bookings = dashboard.bookings || []
+
+  return (
+    <article className="staff-panel">
+      <div className="panel-heading">
+        <h2>Lịch đặt sân ngày {dashboard.date}</h2>
+        <button type="button" className="secondary-button small" onClick={onRefresh} disabled={loading}>
+          {loading ? 'Đang tải...' : 'Tải lại'}
+        </button>
+      </div>
+      <div className="staff-table-wrap">
+        <table className="staff-table">
+          <thead>
+            <tr>
+              <th>Mã</th>
+              <th>Khách hàng</th>
+              <th>Sân</th>
+              <th>Giờ</th>
+              <th>Trạng thái</th>
+              <th>Thanh toán</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bookings.length === 0 && (
+              <tr>
+                <td colSpan="7" className="empty-cell">Chưa có booking trong ngày này.</td>
+              </tr>
+            )}
+            {bookings.map((booking) => (
+              <tr key={booking.id}>
+                <td><strong>{booking.bookingCode}</strong></td>
+                <td>
+                  <span>{booking.customerName}</span>
+                  <small>{booking.customerPhone || booking.customerEmail}</small>
+                </td>
+                <td>{booking.courtCode} - {booking.courtName}</td>
+                <td>{booking.startTime || '--'} - {booking.endTime || '--'}</td>
+                <td><span className={`status-pill ${booking.bookingStatus}`}>{bookingStatusLabels[booking.bookingStatus] || booking.bookingStatus}</span></td>
+                <td>
+                  <span>{paymentStatusLabels[booking.paymentStatus] || booking.paymentStatus}</span>
+                  <small>{formatFullMoney(booking.totalAmount)}</small>
+                </td>
+                <td>
+                  <div className="row-actions">
+                    {booking.bookingStatus === 'pending' && (
+                      <button type="button" className="primary-button small" onClick={() => onBookingAction(booking, 'confirm')} disabled={loading}>Xác nhận</button>
+                    )}
+                    {!['cancelled', 'completed', 'expired'].includes(booking.bookingStatus) && (
+                      <button type="button" className="danger-button small" onClick={() => onBookingAction(booking, 'cancel', { cancelReason: 'Cancelled by owner' })} disabled={loading}>Hủy</button>
+                    )}
+                    {booking.paymentStatus !== 'paid' && (
+                      <button type="button" className="secondary-button small" onClick={() => onBookingAction(booking, 'payment', { paymentMethod: 'cash' })} disabled={loading}>Thu tiền</button>
+                    )}
+                    {booking.bookingStatus === 'confirmed' && (
+                      <button type="button" className="secondary-button small" onClick={() => onBookingAction(booking, 'checkIn')} disabled={loading}>Check-in</button>
+                    )}
+                    {booking.bookingStatus === 'checked_in' && (
+                      <button type="button" className="secondary-button small" onClick={() => onBookingAction(booking, 'checkOut')} disabled={loading}>Check-out</button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  )
+}
+
+function OwnerServicesPanel({ addons, loading, onRefresh, onAddonStock }) {
+  function updateStock(addon) {
+    const nextValue = window.prompt(`Nhập số lượng mới cho ${addon.name}`, addon.stockQuantity)
+    if (nextValue === null) {
+      return
+    }
+
+    const stockQuantity = Number(nextValue)
+    if (!Number.isInteger(stockQuantity) || stockQuantity < 0) {
+      window.alert('Số lượng phải là số nguyên không âm.')
+      return
+    }
+
+    onAddonStock(addon, stockQuantity)
+  }
+
+  return (
+    <article className="staff-panel">
+      <div className="panel-heading">
+        <h2>Dịch vụ đi kèm</h2>
+        <button type="button" className="secondary-button small" onClick={onRefresh} disabled={loading}>Tải lại</button>
+      </div>
+      <div className="addon-grid">
+        {addons.length === 0 && <p className="empty-text">Database chưa có dịch vụ đi kèm.</p>}
+        {addons.map((addon) => (
+          <div className={`addon-card ${addon.status !== 'active' ? 'inactive' : ''}`} key={addon.id}>
+            <div className="addon-copy">
+              <small>{addon.categoryName}</small>
+              <strong>{addon.name}</strong>
+              <span>{addon.serviceType === 'rental' ? 'Cho thuê thiết bị' : 'Bán tại quầy'}</span>
+            </div>
+            <div className="addon-stock">
+              <span className={`inventory-status ${addon.status === 'active' ? 'active' : 'inactive'}`}>{addon.status}</span>
+              <strong>{addon.stockQuantity}</strong>
+              <small>{formatFullMoney(addon.unitPrice)}</small>
+              <button type="button" className="secondary-button small" onClick={() => updateStock(addon)} disabled={loading}>Cập nhật</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function OwnerRevenuePanel({ dashboard, loading, onRefresh }) {
+  const bookings = dashboard.bookings || []
+  const paidBookings = bookings.filter((booking) => booking.paymentStatus === 'paid')
+  const totalRevenue = bookings.reduce((sum, booking) => sum + Number(booking.paidAmount || 0), 0)
+  const pendingRevenue = bookings.reduce((sum, booking) => sum + (booking.paymentStatus === 'paid' ? 0 : Number(booking.totalAmount || 0)), 0)
+
+  return (
+    <section className="staff-workspace">
+      <div className="staff-stat-grid">
+        <article>
+          <span>Booking trong ngày</span>
+          <strong>{bookings.length}</strong>
+        </article>
+        <article>
+          <span>Đã thanh toán</span>
+          <strong>{paidBookings.length}</strong>
+        </article>
+        <article>
+          <span>Doanh thu đã thu</span>
+          <strong>{formatFullMoney(totalRevenue)}</strong>
+        </article>
+      </div>
+      <article className="staff-panel">
+        <div className="panel-heading">
+          <h2>Báo cáo doanh thu ngày {dashboard.date}</h2>
+          <button type="button" className="secondary-button small" onClick={onRefresh} disabled={loading}>Tải lại</button>
+        </div>
+        <dl className="identity-list">
+          <div><dt>Tổng dự kiến</dt><dd>{formatFullMoney(totalRevenue + pendingRevenue)}</dd></div>
+          <div><dt>Đã thu</dt><dd>{formatFullMoney(totalRevenue)}</dd></div>
+          <div><dt>Chưa thu</dt><dd>{formatFullMoney(pendingRevenue)}</dd></div>
+          <div><dt>Booking paid</dt><dd>{paidBookings.length}</dd></div>
+          <div><dt>Ngày</dt><dd>{dashboard.date}</dd></div>
+        </dl>
+      </article>
+    </section>
+  )
+}
+
+function OwnerCustomerPanel({ customers, search, loading, accountsLoading, onSearch, onManage, onHistory, onRefresh }) {
+  const keyword = search.trim().toLowerCase()
+  const filteredCustomers = keyword
+    ? customers.filter((customer) => [customer.fullName, customer.email, customer.phone].some((value) => String(value || '').toLowerCase().includes(keyword)))
+    : customers
+
+  return (
+    <article className="account-group">
+      <div className="panel-heading">
+        <h2>Danh sách khách hàng</h2>
+        <button type="button" className="secondary-button small" onClick={onRefresh} disabled={accountsLoading}>Tải lại</button>
+      </div>
+      <label className="inline-search">
+        Tìm khách hàng
+        <input value={search} onChange={onSearch} placeholder="Tên, email hoặc số điện thoại" />
+      </label>
+      <div className="account-list">
+        {accountsLoading && <p className="empty-text">Đang tải khách hàng từ database...</p>}
+        {!accountsLoading && filteredCustomers.length === 0 && <p className="empty-text">Không tìm thấy khách hàng.</p>}
+        {filteredCustomers.map((customer) => (
+          <div className="account-row" key={customer.id}>
+            <div>
+              <strong>{customer.fullName}</strong>
+              <span>{customer.email}</span>
+              <small>{customer.phone || 'Chưa cập nhật'} - {customer.status}</small>
+            </div>
+            <div className="row-actions">
+              <button type="button" className="secondary-button small" onClick={() => onHistory(customer)} disabled={loading}>Lịch sử</button>
+              <button type="button" className="secondary-button small" onClick={() => onManage(customer, customer.status === 'Blocked' ? 'unban' : 'ban')} disabled={loading}>
+                {customer.status === 'Blocked' ? 'Mở ban' : 'Ban'}
+              </button>
+              <button type="button" className="danger-button small" onClick={() => onManage(customer, 'delete')} disabled={loading}>Xóa</button>
             </div>
           </div>
         ))}
@@ -1986,6 +2347,7 @@ function CourtCard({ court, view, onDetail }) {
 function AccountGroup({ title, users, empty, loading = false, headerAction, actions }) {
   const showBan = actions && actions.allowBan !== false
   const showDelete = actions && actions.allowDelete !== false
+  const showEdit = actions && actions.allowEdit === true
 
   return (
     <article className="account-group">
@@ -2005,6 +2367,11 @@ function AccountGroup({ title, users, empty, loading = false, headerAction, acti
             </div>
             {actions && (
               <div className="row-actions">
+                {showEdit && (
+                  <button type="button" className="secondary-button small" onClick={() => actions.onManage(user, 'edit')} disabled={actions.loading}>
+                    Sửa
+                  </button>
+                )}
                 {showBan && (
                   <button
                     type="button"

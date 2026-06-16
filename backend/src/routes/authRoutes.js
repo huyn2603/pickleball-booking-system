@@ -15,6 +15,8 @@ router.get('/me', requireAuth, authController.me);
 router.put('/me', requireAuth, authController.updateMe);
 router.get('/accounts', requireAuth, authController.listManagedAccounts);
 router.post('/accounts', requireAuth, authController.createManagedAccount);
+router.get('/accounts/:id/bookings', requireAuth, authController.listManagedAccountBookings);
+router.put('/accounts/:id', requireAuth, authController.updateManagedAccount);
 router.patch('/accounts/:id/status', requireAuth, authController.updateManagedAccountStatus);
 router.delete('/accounts/:id', requireAuth, authController.deleteManagedAccount);
 

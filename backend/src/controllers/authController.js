@@ -505,6 +505,72 @@ async function updateManagedAccountStatus(req, res) {
   }
 }
 
+async function updateManagedAccount(req, res) {
+  try {
+    if (!canUse(req, res, ['Admin', 'Owner'])) {
+      return null;
+    }
+
+    const user = await User.findById(req.params.id);
+    const managedRoles = manageableRolesFor(req.user.role);
+    if (!user || !managedRoles.includes(user.role)) {
+      return sendError(res, 404, 'Khong tim thay tai khoan duoc phep quan ly.');
+    }
+
+    const fullName = String(req.body?.fullName || user.fullName || '').trim();
+    const cleanEmail = normalizeEmail(req.body?.email || user.email);
+    const phone = String(req.body?.phone || user.phone || '').trim();
+    const branchId = Number(req.body?.branchId || req.body?.branch_id || user.branchId || 0) || null;
+    const status = ['Active', 'Inactive', 'Blocked', 'Unverified'].includes(req.body?.status) ? req.body.status : user.status;
+
+    if (!fullName || !cleanEmail || !phone) {
+      return sendError(res, 400, 'Vui long nhap day du ho ten, email va so dien thoai.');
+    }
+
+    if (!isGmail(cleanEmail)) {
+      return sendError(res, 400, 'Email phai co duoi @gmail.com.');
+    }
+
+    const existed = await User.findByEmail(cleanEmail);
+    if (existed && Number(existed.id) !== Number(user.id)) {
+      return sendError(res, 409, 'Email da duoc su dung.');
+    }
+
+    const updatedUser = await User.updateManagedAccount(user.id, {
+      fullName,
+      email: cleanEmail,
+      phone,
+      branchId,
+      status,
+    });
+
+    return res.json({ success: true, user: User.toSafeObject(updatedUser) });
+  } catch (error) {
+    console.error('Update managed account error:', error);
+    return sendError(res, 500, 'Loi may chu khi cap nhat tai khoan.');
+  }
+}
+
+async function listManagedAccountBookings(req, res) {
+  try {
+    if (!canUse(req, res, ['Admin', 'Owner'])) {
+      return null;
+    }
+
+    const user = await User.findById(req.params.id);
+    const managedRoles = manageableRolesFor(req.user.role);
+    if (!user || !managedRoles.includes(user.role)) {
+      return sendError(res, 404, 'Khong tim thay tai khoan duoc phep quan ly.');
+    }
+
+    const bookings = await User.listBookingHistory(user.id);
+    return res.json({ success: true, user: User.toSafeObject(user), bookings });
+  } catch (error) {
+    console.error('List managed account bookings error:', error);
+    return sendError(res, 500, 'Loi may chu khi tai lich su dat san.');
+  }
+}
+
 async function deleteManagedAccount(req, res) {
   try {
     if (!canUse(req, res, ['Admin', 'Owner'])) {
@@ -530,6 +596,7 @@ module.exports = {
   deleteManagedAccount,
   getPlainPassword,
   googleLogin,
+  listManagedAccountBookings,
   listManagedAccounts,
   login,
   me,
@@ -537,6 +604,7 @@ module.exports = {
   requestPasswordResetOtp,
   resetPasswordWithOtp,
   updateManagedAccountStatus,
+  updateManagedAccount,
   updateMe,
   verifyPasswordResetOtp,
 };

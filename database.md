@@ -442,10 +442,16 @@ Seed co them 10 tai khoan Staff tu `pickleball.staff01@gmail.com` den `picklebal
 
 | Chi nhanh | Code | Ten san | Loai | Mat san | Gia co ban |
 | --- | --- | --- | --- | --- | --- |
-| `HN-TAYHO` | `A1` | `San A1` | `indoor` | `standard` | `160000` |
-| `HN-TAYHO` | `A2` | `San A2` | `indoor` | `standard` | `160000` |
-| `HN-CAUGIAY` | `B1` | `San B1` | `outdoor` | `synthetic` | `140000` |
-| `HN-HADONG` | `C1` | `San C1` | `indoor` | `premium` | `180000` |
+| `HN-TAYHO` | `A1` | `San A1 Indoor` | `indoor` | `standard` | `160000` |
+| `HN-TAYHO` | `A2` | `San A2 Indoor` | `indoor` | `premium` | `170000` |
+| `HN-CAUGIAY` | `B1` | `San B1 Indoor` | `indoor` | `standard` | `150000` |
+| `HN-CAUGIAY` | `B2` | `San B2 Indoor` | `indoor` | `wood` | `165000` |
+| `HN-HADONG` | `C1` | `San C1 Indoor` | `indoor` | `premium` | `180000` |
+| `HN-TAYHO` | `A3` | `San A3 Outdoor` | `outdoor` | `synthetic` | `140000` |
+| `HN-TAYHO` | `A4` | `San A4 Outdoor` | `outdoor` | `concrete` | `135000` |
+| `HN-CAUGIAY` | `B3` | `San B3 Outdoor` | `outdoor` | `synthetic` | `145000` |
+| `HN-HADONG` | `C2` | `San C2 Outdoor` | `outdoor` | `synthetic` | `150000` |
+| `HN-HADONG` | `C3` | `San C3 Outdoor` | `outdoor` | `concrete` | `130000` |
 
 ### Gia Slot
 
@@ -461,6 +467,16 @@ Seed co them 10 tai khoan Staff tu `pickleball.staff01@gmail.com` den `picklebal
 - Addon seed: `RACKET-STD`, `BALL-SET`, `WATER`.
 - Promotion seed: `WELCOME20`.
 - Voucher seed: `WELCOME20-DEMO`.
+
+### Booking Demo
+
+Seed co 3 booking demo trong ngay import:
+
+| Booking | Customer | San | Gio | Trang thai |
+| --- | --- | --- | --- | --- |
+| `BK-DEMO-001` | `pickleball.customer01@gmail.com` | `A1` | `08:00:00` - `09:00:00` | `confirmed`, `paid` |
+| `BK-DEMO-002` | `pickleball.customer02@gmail.com` | `A3` | `09:30:00` - `10:30:00` | `pending`, `unpaid` |
+| `BK-DEMO-003` | `pickleball.customer03@gmail.com` | `B3` | `15:00:00` - `16:00:00` | `confirmed`, `paid` |
 
 ## Backend Env
 

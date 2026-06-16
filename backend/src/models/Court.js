@@ -249,6 +249,7 @@ async function create({
   type,
   surfaceType = 'standard',
   basePricePerHour = 160000,
+  status = 'available',
   facilities = [],
 }) {
   const safeBranchId = branchId || await getDefaultBranchId();
@@ -257,8 +258,8 @@ async function create({
   }
 
   const result = await query(
-    `INSERT INTO courts (branch_id, code, name, address, court_type, surface_type, base_price_per_hour, facilities)
-     VALUES (:branchId, :code, :name, :address, :type, :surfaceType, :basePricePerHour, :facilities)`,
+    `INSERT INTO courts (branch_id, code, name, address, court_type, surface_type, base_price_per_hour, facilities, status)
+     VALUES (:branchId, :code, :name, :address, :type, :surfaceType, :basePricePerHour, :facilities, :status)`,
     {
       branchId: safeBranchId,
       code,
@@ -267,6 +268,7 @@ async function create({
       type,
       surfaceType,
       basePricePerHour,
+      status,
       facilities: JSON.stringify(facilities),
     },
   );

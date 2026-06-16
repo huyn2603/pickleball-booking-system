@@ -533,13 +533,33 @@ SET branch_id = CASE
   WHEN email IN ('pickleball.staff04@gmail.com', 'pickleball.staff05@gmail.com', 'pickleball.staff06@gmail.com') THEN 2
   WHEN email IN ('pickleball.staff07@gmail.com', 'pickleball.staff08@gmail.com', 'pickleball.staff09@gmail.com', 'pickleball.staff10@gmail.com') THEN 3
   ELSE branch_id
-END;
+END
+WHERE email IN (
+  'pickleball.owner@gmail.com',
+  'pickleball.staff@gmail.com',
+  'pickleball.staff01@gmail.com',
+  'pickleball.staff02@gmail.com',
+  'pickleball.staff03@gmail.com',
+  'pickleball.staff04@gmail.com',
+  'pickleball.staff05@gmail.com',
+  'pickleball.staff06@gmail.com',
+  'pickleball.staff07@gmail.com',
+  'pickleball.staff08@gmail.com',
+  'pickleball.staff09@gmail.com',
+  'pickleball.staff10@gmail.com'
+);
 
 INSERT INTO courts (branch_id, code, name, address, court_type, surface_type, base_price_per_hour, facilities) VALUES
-  (1, 'A1', 'San A1', '12 Trinh Cong Son, Tay Ho, Ha Noi', 'indoor', 'standard', 160000, JSON_ARRAY('lighting','parking','locker')),
-  (1, 'A2', 'San A2', '12 Trinh Cong Son, Tay Ho, Ha Noi', 'indoor', 'standard', 160000, JSON_ARRAY('lighting','parking')),
-  (2, 'B1', 'San B1', '34 Nguyen Van Huyen, Cau Giay, Ha Noi', 'outdoor', 'synthetic', 140000, JSON_ARRAY('lighting','parking')),
-  (3, 'C1', 'San C1', '88 To Huu, Ha Dong, Ha Noi', 'indoor', 'premium', 180000, JSON_ARRAY('lighting','parking','locker','shower'));
+  (1, 'A1', 'San A1 Indoor', '12 Trinh Cong Son, Tay Ho, Ha Noi', 'indoor', 'standard', 160000, JSON_ARRAY('lighting','parking','locker')),
+  (1, 'A2', 'San A2 Indoor', '12 Trinh Cong Son, Tay Ho, Ha Noi', 'indoor', 'premium', 170000, JSON_ARRAY('lighting','parking','locker','shower')),
+  (2, 'B1', 'San B1 Indoor', '34 Nguyen Van Huyen, Cau Giay, Ha Noi', 'indoor', 'standard', 150000, JSON_ARRAY('lighting','parking')),
+  (2, 'B2', 'San B2 Indoor', '34 Nguyen Van Huyen, Cau Giay, Ha Noi', 'indoor', 'wood', 165000, JSON_ARRAY('lighting','parking','locker')),
+  (3, 'C1', 'San C1 Indoor', '88 To Huu, Ha Dong, Ha Noi', 'indoor', 'premium', 180000, JSON_ARRAY('lighting','parking','locker','shower')),
+  (1, 'A3', 'San A3 Outdoor', '12 Trinh Cong Son, Tay Ho, Ha Noi', 'outdoor', 'synthetic', 140000, JSON_ARRAY('lighting','parking')),
+  (1, 'A4', 'San A4 Outdoor', '12 Trinh Cong Son, Tay Ho, Ha Noi', 'outdoor', 'concrete', 135000, JSON_ARRAY('lighting','parking')),
+  (2, 'B3', 'San B3 Outdoor', '34 Nguyen Van Huyen, Cau Giay, Ha Noi', 'outdoor', 'synthetic', 145000, JSON_ARRAY('lighting','parking','seating')),
+  (3, 'C2', 'San C2 Outdoor', '88 To Huu, Ha Dong, Ha Noi', 'outdoor', 'synthetic', 150000, JSON_ARRAY('lighting','parking')),
+  (3, 'C3', 'San C3 Outdoor', '88 To Huu, Ha Dong, Ha Noi', 'outdoor', 'concrete', 130000, JSON_ARRAY('lighting','parking','seating'));
 
 INSERT INTO price_rules (branch_id, court_id, name, day_of_week, start_time, end_time, price_per_slot, priority) VALUES
   (NULL, NULL, 'Off peak', NULL, '05:00:00', '17:00:00', 80000, 100),
@@ -561,6 +581,34 @@ VALUES ('WELCOME20', 'Welcome discount', '20 percent discount for new customers'
 
 INSERT INTO vouchers (promotion_id, voucher_code, max_usage)
 VALUES (1, 'WELCOME20-DEMO', 1);
+
+INSERT INTO bookings (
+  booking_code,
+  customer_id,
+  staff_id,
+  branch_id,
+  court_id,
+  booking_date,
+  sub_total,
+  discount_amount,
+  total_amount,
+  payment_status,
+  booking_status,
+  source,
+  expires_at
+) VALUES
+  ('BK-DEMO-001', 15, 3, 1, 1, CURDATE(), 160000, 0, 160000, 'paid', 'confirmed', 'online', DATE_ADD(NOW(), INTERVAL 2 HOUR)),
+  ('BK-DEMO-002', 16, 3, 1, 6, CURDATE(), 140000, 0, 140000, 'unpaid', 'pending', 'online', DATE_ADD(NOW(), INTERVAL 2 HOUR)),
+  ('BK-DEMO-003', 17, 6, 2, 8, CURDATE(), 145000, 0, 145000, 'paid', 'confirmed', 'counter', DATE_ADD(NOW(), INTERVAL 2 HOUR));
+
+INSERT INTO booking_slots (booking_id, branch_id, court_id, booking_date, start_time, end_time, price) VALUES
+  (1, 1, 1, CURDATE(), '08:00:00', '09:00:00', 160000),
+  (2, 1, 6, CURDATE(), '09:30:00', '10:30:00', 140000),
+  (3, 2, 8, CURDATE(), '15:00:00', '16:00:00', 145000);
+
+INSERT INTO payment_transactions (transaction_code, booking_id, customer_id, amount, payment_method, status, paid_at, note) VALUES
+  ('PAY-DEMO-001', 1, 15, 160000, 'bank_transfer', 'success', NOW(), 'Demo paid booking'),
+  ('PAY-DEMO-003', 3, 17, 145000, 'cash', 'success', NOW(), 'Demo counter booking');
 
 SET SQL_MODE=@OLD_SQL_MODE;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;

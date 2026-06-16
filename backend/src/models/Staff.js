@@ -143,6 +143,70 @@ async function checkIn(bookingId, staffId) {
   return findBooking(bookingId);
 }
 
+async function confirmBooking(bookingId, staffId) {
+  await transaction(async (connection) => {
+    const [rows] = await connection.execute(
+      'SELECT id, booking_status FROM bookings WHERE id = :bookingId FOR UPDATE',
+      { bookingId },
+    );
+    const booking = rows[0];
+
+    if (!booking) {
+      const error = new Error('Khong tim thay booking.');
+      error.status = 404;
+      throw error;
+    }
+
+    if (booking.booking_status !== 'pending') {
+      const error = new Error('Chi booking dang cho moi duoc xac nhan.');
+      error.status = 400;
+      throw error;
+    }
+
+    await connection.execute(
+      `UPDATE bookings
+       SET booking_status = 'confirmed', staff_id = :staffId
+       WHERE id = :bookingId`,
+      { bookingId, staffId },
+    );
+  });
+
+  return findBooking(bookingId);
+}
+
+async function cancelBooking(bookingId, staffId, cancelReason = '') {
+  await transaction(async (connection) => {
+    const [rows] = await connection.execute(
+      'SELECT id, booking_status FROM bookings WHERE id = :bookingId FOR UPDATE',
+      { bookingId },
+    );
+    const booking = rows[0];
+
+    if (!booking) {
+      const error = new Error('Khong tim thay booking.');
+      error.status = 404;
+      throw error;
+    }
+
+    if (['completed', 'cancelled', 'expired'].includes(booking.booking_status)) {
+      const error = new Error('Booking nay khong the huy.');
+      error.status = 400;
+      throw error;
+    }
+
+    await connection.execute(
+      `UPDATE bookings
+       SET booking_status = 'cancelled',
+           cancel_reason = :cancelReason,
+           staff_id = :staffId
+       WHERE id = :bookingId`,
+      { bookingId, staffId, cancelReason: cancelReason || 'Cancelled by operator' },
+    );
+  });
+
+  return findBooking(bookingId);
+}
+
 async function checkOut(bookingId, staffId) {
   let extraMinutes = 0;
 
@@ -300,6 +364,8 @@ async function updateAddonStock(addonId, stockQuantity) {
 module.exports = {
   checkIn,
   checkOut,
+  cancelBooking,
+  confirmBooking,
   listAddons,
   listTodayBookings,
   recordCounterPayment,
