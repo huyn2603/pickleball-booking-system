@@ -32,6 +32,64 @@ function formatFullMoney(value) {
   return `${Number(value || 0).toLocaleString('vi-VN')}đ`
 }
 
+function formatDateDisplay(value) {
+  if (!value) {
+    return 'Chưa chọn'
+  }
+
+  const [year, month, day] = String(value).split('-')
+  return `${day}/${month}/${year}`
+}
+
+function timeToMinutes(time) {
+  const [hours, minutes] = String(time || '00:00').split(':').map(Number)
+  return hours * 60 + minutes
+}
+
+function minutesToTime(total) {
+  const hours = String(Math.floor(total / 60)).padStart(2, '0')
+  const minutes = String(total % 60).padStart(2, '0')
+  return `${hours}:${minutes}`
+}
+
+function addHoursToTime(time, hours) {
+  return minutesToTime(timeToMinutes(time) + Math.round(Number(hours || 0) * 60))
+}
+
+function slotCoversRange(slot, startMinutes, endMinutes) {
+  return timeToMinutes(slot.startTime) >= startMinutes && timeToMinutes(slot.endTime) <= endMinutes
+}
+
+function hasAvailableDuration(slots, startTime, durationHours) {
+  const startMinutes = timeToMinutes(startTime)
+  const endMinutes = startMinutes + Math.round(Number(durationHours || 0) * 60)
+  const coveredSlots = slots.filter((slot) => slotCoversRange(slot, startMinutes, endMinutes))
+
+  if (coveredSlots.length === 0) {
+    return false
+  }
+
+  const coveredMinutes = coveredSlots.reduce((total, slot) => total + timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime), 0)
+  return coveredMinutes === endMinutes - startMinutes && coveredSlots.every((slot) => slot.status === 'available')
+}
+
+function calculateBookingTotal(slots, startTime, durationHours) {
+  const startMinutes = timeToMinutes(startTime)
+  const endMinutes = startMinutes + Math.round(Number(durationHours || 0) * 60)
+  return slots
+    .filter((slot) => slotCoversRange(slot, startMinutes, endMinutes))
+    .reduce((total, slot) => total + Number(slot.price || 0), 0)
+}
+
+const slotStatusLabels = {
+  available: 'Trống',
+  booked: 'Đã đặt',
+  held: 'Đang giữ',
+  in_use: 'Đang sử dụng',
+  maintenance: 'Bảo trì',
+  inactive: 'Tạm ngưng',
+}
+
 const bookingStatusLabels = {
   pending: 'Đang giữ',
   confirmed: 'Đã xác nhận',
@@ -90,17 +148,19 @@ function App() {
   const [session, setSession] = useState(readStoredSession)
   const [page, setPage] = useState('home')
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
-  const [sportMenuOpen, setSportMenuOpen] = useState(false)
   const [avatarSrc, setAvatarSrc] = useState(() => readStoredAvatar(readStoredSession()?.user))
   const [courts, setCourts] = useState([])
   const [branches, setBranches] = useState([])
   const [courtsLoading, setCourtsLoading] = useState(false)
   const [courtView, setCourtView] = useState('list')
   const [courtFilter, setCourtFilter] = useState('all')
+  const [courtTypeMenuOpen, setCourtTypeMenuOpen] = useState(false)
+  const [courtSort, setCourtSort] = useState('code')
   const [courtPage, setCourtPage] = useState(1)
   const [selectedCourtId, setSelectedCourtId] = useState(null)
   const [ownerView, setOwnerView] = useState('courts')
   const [editingCourtId, setEditingCourtId] = useState(null)
+  const [bookingNotice, setBookingNotice] = useState('')
   const [mode, setMode] = useState('login')
   const [editingProfile, setEditingProfile] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -146,10 +206,21 @@ function App() {
   const role = session?.user?.role
   const canManageAccounts = role === 'Admin' || role === 'Owner'
   const filteredCourts = courtFilter === 'all' ? courts : courts.filter((court) => court.type === courtFilter)
+  const sortedCourts = [...filteredCourts].sort((left, right) => {
+    if (courtSort === 'price') {
+      return Number(left.basePricePerHour || 0) - Number(right.basePricePerHour || 0)
+    }
+
+    if (courtSort === 'status') {
+      return String(left.statusLabel || left.status).localeCompare(String(right.statusLabel || right.status), 'vi')
+    }
+
+    return String(left.code || left.name).localeCompare(String(right.code || right.name), 'vi', { numeric: true })
+  })
   const courtsPerPage = courtView === 'grid' ? 9 : 5
-  const totalCourtPages = Math.max(1, Math.ceil(filteredCourts.length / courtsPerPage))
+  const totalCourtPages = Math.max(1, Math.ceil(sortedCourts.length / courtsPerPage))
   const safeCourtPage = Math.min(courtPage, totalCourtPages)
-  const pagedCourts = filteredCourts.slice((safeCourtPage - 1) * courtsPerPage, safeCourtPage * courtsPerPage)
+  const pagedCourts = sortedCourts.slice((safeCourtPage - 1) * courtsPerPage, safeCourtPage * courtsPerPage)
   const selectedCourt = courts.find((court) => Number(court.id) === Number(selectedCourtId))
   const googleButtonRef = useRef(null)
   const googleInitializedRef = useRef(false)
@@ -290,13 +361,12 @@ function App() {
   function showHome() {
     setPage('home')
     setAvatarMenuOpen(false)
-    setSportMenuOpen(false)
     resetNotice()
   }
 
-  function showOwnerFeature(nextView) {
+  function showOwnerFeature(nextView = 'courts') {
     setAvatarMenuOpen(false)
-    setSportMenuOpen(false)
+    setCourtTypeMenuOpen(false)
     resetNotice()
 
     if (!session) {
@@ -312,9 +382,13 @@ function App() {
     setEditingProfile(false)
   }
 
+  function showManagement() {
+    showOwnerFeature('courts')
+  }
+
   function showCourts() {
     setAvatarMenuOpen(false)
-    setSportMenuOpen(false)
+    setCourtTypeMenuOpen(false)
     resetNotice()
 
     if (!session) {
@@ -326,16 +400,25 @@ function App() {
     fetchCourts()
   }
 
-  function chooseCourtType(type) {
-    setSportMenuOpen(false)
+  function applyCourtTypeFilter(type) {
     setCourtFilter(type)
     setCourtPage(1)
-    showCourts()
+    setCourtTypeMenuOpen(false)
+
+    if (!session) {
+      showAuth('login')
+      return
+    }
+
+    setPage('courts')
+    fetchCourts()
   }
 
   function showCourtDetail(court) {
     setAvatarMenuOpen(false)
+    setCourtTypeMenuOpen(false)
     resetNotice()
+    setBookingNotice('')
 
     if (!session) {
       showAuth('login')
@@ -346,12 +429,27 @@ function App() {
     setPage('court-detail')
   }
 
-  // eslint-disable-next-line no-unused-vars
-  function addCourtPlaceholder(event) {
-    event.preventDefault()
-    setMessage('Danh sách sân hiện lấy từ database. Chức năng thêm sân cần API quản lý sân riêng.')
-    setMessageType('error')
+  function showBooking(court) {
+    setAvatarMenuOpen(false)
+    setCourtTypeMenuOpen(false)
+    resetNotice()
+    setBookingNotice('')
+
+    if (!session) {
+      showAuth('login')
+      return
+    }
+
+    setSelectedCourtId(court.id)
+    setPage('booking')
   }
+
+  function changeBookingCourt() {
+    setCourtFilter('all')
+    setCourtPage(1)
+    showCourts()
+  }
+
 
   async function addCourt(event) {
     event.preventDefault()
@@ -519,7 +617,7 @@ function App() {
         throw new Error(data.message || 'Không thể tải danh sách sân.')
       }
 
-      setCourts(data.courts || [])
+      setCourts(data.data?.courts || data.courts || [])
       setBranches(data.branches || [])
       setCourtPage(1)
     } catch (error) {
@@ -1062,32 +1160,41 @@ function App() {
 
         <div className="nav-center">
           <button type="button" onClick={showCourts}>Tìm sân</button>
-          <div className="sport-menu-wrap">
-            <button type="button" className="sport-menu-trigger" onClick={() => setSportMenuOpen((open) => !open)} aria-expanded={sportMenuOpen}>
-              Loại sân
-              <span aria-hidden="true">⌄</span>
+          <div className="nav-dropdown-wrap">
+            <button
+              type="button"
+              className={courtTypeMenuOpen ? 'active' : ''}
+              onClick={() => {
+                setAvatarMenuOpen(false)
+                setCourtTypeMenuOpen((open) => !open)
+              }}
+              aria-haspopup="menu"
+              aria-expanded={courtTypeMenuOpen}
+            >
+              Loai san
             </button>
-            {sportMenuOpen && (
-              <div className="sport-menu" role="menu">
-                {[
-                  ['🏟️', 'Sân ngoài trời', 'outdoor'],
-                  ['🏠', 'Sân trong nhà', 'indoor'],
-                ].map(([icon, label, type]) => (
-                  <button type="button" key={label} onClick={() => chooseCourtType(type)} role="menuitem">
-                    <span aria-hidden="true">{icon}</span>
-                    {label}
-                  </button>
-                ))}
+            {courtTypeMenuOpen && (
+              <div className="nav-dropdown" role="menu" aria-label="Loc loai san">
+                <button type="button" className={courtFilter === 'all' ? 'active' : ''} onClick={() => applyCourtTypeFilter('all')} role="menuitem">
+                  Tat ca san pickleball
+                </button>
+                <button type="button" className={courtFilter === 'outdoor' ? 'active' : ''} onClick={() => applyCourtTypeFilter('outdoor')} role="menuitem">
+                  San ngoai troi
+                </button>
+                <button type="button" className={courtFilter === 'indoor' ? 'active' : ''} onClick={() => applyCourtTypeFilter('indoor')} role="menuitem">
+                  San trong nha
+                </button>
               </div>
             )}
           </div>
+          <button type="button" onClick={showManagement}>Phan mem quan ly</button>
           {role === 'Owner' && (
             <>
-              <button type="button" onClick={() => showOwnerFeature('courts')}>Quản lý sân</button>
-              <button type="button" onClick={() => showOwnerFeature('bookings')}>Lịch đặt</button>
-              <button type="button" onClick={() => showOwnerFeature('customers')}>Khách hàng</button>
-              <button type="button" onClick={() => showOwnerFeature('staff')}>Nhân viên</button>
-              <button type="button" onClick={() => showOwnerFeature('services')}>Dịch vụ</button>
+              <button type="button" onClick={() => showOwnerFeature('courts')}>Quan ly san</button>
+              <button type="button" onClick={() => showOwnerFeature('bookings')}>Lich dat</button>
+              <button type="button" onClick={() => showOwnerFeature('customers')}>Khach hang</button>
+              <button type="button" onClick={() => showOwnerFeature('staff')}>Nhan vien</button>
+              <button type="button" onClick={() => showOwnerFeature('services')}>Dich vu</button>
               <button type="button" onClick={() => showOwnerFeature('revenue')}>Doanh thu</button>
             </>
           )}
@@ -1319,17 +1426,17 @@ function App() {
             </article>
             <article>
               <h2>Sắp xếp</h2>
-              <select defaultValue="az">
-                <option value="az">Tên A-Z</option>
-                <option value="district">Khu vực Hà Nội</option>
-                <option value="count">Số sân nhiều nhất</option>
+              <select value={courtSort} onChange={(event) => { setCourtSort(event.target.value); setCourtPage(1) }}>
+                <option value="code">Mã sân A-Z</option>
+                <option value="status">Trạng thái</option>
+                <option value="price">Giá thấp nhất</option>
               </select>
             </article>
           </aside>
 
           <div className="courts-content">
             <div className="courts-toolbar">
-              <strong>{courtsLoading ? 'Đang tải sân từ database...' : `${filteredCourts.length} sân · Trang ${safeCourtPage}/${totalCourtPages}`}</strong>
+              <strong>{courtsLoading ? 'Đang tải sân từ database...' : `${sortedCourts.length} sân · Trang ${safeCourtPage}/${totalCourtPages}`}</strong>
               <div className="view-toggle" aria-label="Đổi kiểu hiển thị">
                 <button type="button" className={courtView === 'list' ? 'active' : ''} onClick={() => { setCourtView('list'); setCourtPage(1) }}>☷</button>
                 <button type="button" className={courtView === 'grid' ? 'active' : ''} onClick={() => { setCourtView('grid'); setCourtPage(1) }}>▦</button>
@@ -1343,7 +1450,7 @@ function App() {
                 <p className="empty-text">Chưa có sân nào trong database.</p>
               )}
               {pagedCourts.map((court) => (
-                <CourtCard key={court.id} court={court} view={courtView} onDetail={showCourtDetail} />
+                <CourtCard key={court.id} court={court} onDetail={showCourtDetail} />
               ))}
             </div>
 
@@ -1374,7 +1481,19 @@ function App() {
       )}
 
       {page === 'court-detail' && session && selectedCourt && (
-        <CourtDetailPage court={selectedCourt} token={session.token} onBack={showCourts} />
+        <CourtDetailPage court={selectedCourt} token={session.token} onBack={showCourts} onBook={showBooking} />
+      )}
+
+      {page === 'booking' && session && selectedCourt && (
+        <BookingPage
+          court={selectedCourt}
+          user={session.user}
+          token={session.token}
+          notice={bookingNotice}
+          onNotice={setBookingNotice}
+          onBack={() => showCourtDetail(selectedCourt)}
+          onChangeCourt={changeBookingCourt}
+        />
       )}
 
       {page === 'dashboard' && session && (
@@ -2130,12 +2249,12 @@ function CustomerTools() {
   )
 }
 
-function CourtDetailPage({ court, token, onBack }) {
+function CourtDetailPage({ court, token, onBack, onBook }) {
   const [courtDetail, setCourtDetail] = useState(court)
   const [availability, setAvailability] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailMessage, setDetailMessage] = useState('')
-  const selectedDate = getTodayString()
+  const [selectedDate, setSelectedDate] = useState(getTodayString)
   const activeCourt = courtDetail || court
   const isOutdoor = activeCourt.type === 'outdoor'
   const image = isOutdoor ? courtOutdoor : courtIndoor
@@ -2170,8 +2289,8 @@ function CourtDetailPage({ court, token, onBack }) {
           throw new Error(availabilityData.message || 'Không thể tải lịch trống.')
         }
 
-        setCourtDetail(detailData.court)
-        setAvailability(availabilityData.availability)
+        setCourtDetail(detailData.data?.court || detailData.court)
+        setAvailability(availabilityData.data?.availability || availabilityData.availability)
       } catch (error) {
         setDetailMessage(error.message)
       } finally {
@@ -2197,7 +2316,7 @@ function CourtDetailPage({ court, token, onBack }) {
       <div className="court-detail-layout">
         <div className="court-detail-main">
           {detailMessage && <p className="message error">{detailMessage}</p>}
-          {detailLoading && <p className="message">Đang tải chi tiết sân từ database...</p>}
+          {detailLoading && <p className="message">Đang tải chi tiết sân...</p>}
 
           <article className="detail-card court-overview-card">
             <div className="overview-actions">
@@ -2221,7 +2340,7 @@ function CourtDetailPage({ court, token, onBack }) {
             <p>{activeCourt.intro}</p>
             <h2>Thông tin sân</h2>
             <div className="subcourt-list">
-              <span>{activeCourt.code} - {activeCourt.name} <small>({activeCourt.surfaceType})</small></span>
+              <span>{activeCourt.code} - {activeCourt.name} <small>({activeCourt.surfaceLabel || activeCourt.surfaceType})</small></span>
               <span>Giá cơ bản <small>{formatMoney(activeCourt.basePricePerHour)}/h</small></span>
               {activeCourt.facilities?.map((item) => (
                 <span key={item}>{item}</span>
@@ -2249,17 +2368,33 @@ function CourtDetailPage({ court, token, onBack }) {
           </article>
 
           <article className="detail-card">
-            <h2>Lịch trống hôm nay ({selectedDate})</h2>
+            <div className="slot-title-row">
+              <h2>Lịch trống theo ngày</h2>
+              <label>
+                Ngày xem
+                <input type="date" min={getTodayString()} value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
+              </label>
+            </div>
             <div className="slot-board">
               <div className="slot-group">
                 <div className="slot-heading">
                   <strong>{activeCourt.code} - {activeCourt.name}</strong>
-                  <span>{formatMoney(activeCourt.basePricePerHour)}/h</span>
+                  <span>{selectedDate} · {formatMoney(activeCourt.basePricePerHour)}/h</span>
                 </div>
                 <div className="time-grid">
+                  {!detailLoading && slots.length === 0 && (
+                    <p className="empty-text">Không còn slot trống để đặt trong ngày này.</p>
+                  )}
                   {slots.map((slot) => (
-                    <button type="button" className={slot.status === 'booked' ? 'booked' : ''} key={`${slot.startTime}-${slot.endTime}`} disabled={slot.status === 'booked'}>
-                      {slot.startTime}
+                    <button
+                      type="button"
+                      className={slot.status === 'available' ? '' : slot.status}
+                      key={`${slot.startTime}-${slot.endTime}`}
+                      disabled={slot.status !== 'available'}
+                      title={`${slot.startTime}-${slot.endTime} · ${slotStatusLabels[slot.status] || slot.status}`}
+                    >
+                      <span>{slot.startTime}</span>
+                      <small>{slotStatusLabels[slot.status] || slot.status}</small>
                     </button>
                   ))}
                 </div>
@@ -2267,9 +2402,11 @@ function CourtDetailPage({ court, token, onBack }) {
             </div>
             <div className="slot-legend">
               <span><i className="available-dot" />Trống</span>
+              <span><i className="held-dot" />Đang giữ</span>
               <span><i />Đã đặt</span>
+              <span><i className="maintenance-dot" />Bảo trì</span>
             </div>
-            <button type="button" className="primary-button wide">Đặt sân ngay</button>
+            <button type="button" className="primary-button wide" onClick={() => onBook(activeCourt)}>Đặt sân ngay</button>
           </article>
 
           <article className="detail-card">
@@ -2288,7 +2425,7 @@ function CourtDetailPage({ court, token, onBack }) {
         </div>
 
         <aside className="court-detail-side" aria-label="Đặt sân nhanh">
-          <BookingSummaryCard court={activeCourt} />
+          <BookingSummaryCard court={activeCourt} onBook={onBook} />
           <article className="detail-card contact-card">
             <h2>Thông tin liên hệ</h2>
             <strong>{activeCourt.hotline}</strong>
@@ -2302,23 +2439,252 @@ function CourtDetailPage({ court, token, onBack }) {
   )
 }
 
-function BookingSummaryCard({ court }) {
+function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCourt }) {
+  const [courtDetail, setCourtDetail] = useState(court)
+  const [availability, setAvailability] = useState(null)
+  const [selectedDate, setSelectedDate] = useState(getTodayString)
+  const [durationHours, setDurationHours] = useState(1)
+  const [selectedTime, setSelectedTime] = useState('')
+  const [loadingBookingData, setLoadingBookingData] = useState(false)
+  const [bookingError, setBookingError] = useState('')
+  const [contact, setContact] = useState({
+    fullName: user.fullName || '',
+    phone: user.phone || '',
+    email: user.email || '',
+    note: '',
+  })
+  const activeCourt = courtDetail || court
+  const slots = availability?.slots || []
+  const endTime = selectedTime ? addHoursToTime(selectedTime, durationHours) : ''
+  const totalAmount = selectedTime ? calculateBookingTotal(slots, selectedTime, durationHours) : 0
+  const canConfirm = selectedTime && contact.fullName.trim() && contact.phone.trim() && totalAmount > 0
+  const durationOptions = [1, 1.5, 2]
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function fetchBookingData() {
+      setSelectedTime('')
+      onNotice('')
+      setLoadingBookingData(true)
+      setBookingError('')
+
+      try {
+        const [detailResponse, availabilityResponse] = await Promise.all([
+          fetch(`${API_URL}/courts/${court.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_URL}/courts/${court.id}/availability?date=${selectedDate}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ])
+
+        const detailData = await detailResponse.json()
+        const availabilityData = await availabilityResponse.json()
+
+        if (!detailResponse.ok) {
+          throw new Error(detailData.message || 'Không thể tải thông tin sân.')
+        }
+
+        if (!availabilityResponse.ok) {
+          throw new Error(availabilityData.message || 'Không thể tải lịch trống.')
+        }
+
+        if (!cancelled) {
+          setCourtDetail(detailData.data?.court || detailData.court)
+          setAvailability(availabilityData.data?.availability || availabilityData.availability)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setBookingError(error.message)
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingBookingData(false)
+        }
+      }
+    }
+
+    fetchBookingData()
+    return () => {
+      cancelled = true
+    }
+  }, [court.id, selectedDate, token, onNotice])
+
+  function updateContact(event) {
+    setContact((current) => ({
+      ...current,
+      [event.target.name]: event.target.value,
+    }))
+  }
+
+  function confirmBooking(event) {
+    event.preventDefault()
+
+    if (!canConfirm) {
+      onNotice('Vui lòng chọn sân, ngày, giờ bắt đầu và nhập đủ họ tên, số điện thoại.')
+      return
+    }
+
+    onNotice('Chức năng xác nhận đặt sân đang được hoàn thiện. Vui lòng liên hệ nhân viên để được hỗ trợ.')
+  }
+
+  return (
+    <section className="booking-page" aria-label="Đặt sân pickleball">
+      <header className="booking-header">
+        <button type="button" className="secondary-button small" onClick={onBack}>Quay lại chi tiết</button>
+      </header>
+
+      <form className="booking-layout" onSubmit={confirmBooking}>
+        <div className="booking-main">
+          {bookingError && <p className="message error">{bookingError}</p>}
+          {notice && <p className="message">{notice}</p>}
+
+          <article className="booking-step-card">
+            <div className="booking-step-title">
+              <span>1</span>
+              <h2>Cơ sở đã chọn</h2>
+            </div>
+            <div className="booking-venue-card">
+              <img src={activeCourt.type === 'outdoor' ? courtOutdoor : courtIndoor} alt={activeCourt.name} />
+              <div>
+                <strong>{activeCourt.venueName || 'Pickleball Ha Noi'}</strong>
+                <span>{activeCourt.address || 'Ha Noi'}</span>
+                <small>{activeCourt.hours || '05:00 - 22:00'} · Giữ lịch 10 phút khi xác nhận</small>
+              </div>
+            </div>
+          </article>
+
+          <article className="booking-step-card">
+            <div className="booking-step-title">
+              <span>2</span>
+              <h2>Chọn sân và lịch</h2>
+            </div>
+
+            <div className="selected-booking-court">
+              <div>
+                <strong>{activeCourt.code} - {activeCourt.name}</strong>
+                <span>{activeCourt.type === 'outdoor' ? 'Sân ngoài trời' : 'Sân trong nhà'} · {activeCourt.statusLabel || activeCourt.status}</span>
+              </div>
+              <button type="button" className="secondary-button small" onClick={onChangeCourt}>Đổi sân</button>
+            </div>
+
+            <div className="booking-grid-controls">
+              <label>
+                Ngày đặt sân
+                <input type="date" min={getTodayString()} value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
+              </label>
+              <div className="booking-control-group">
+                <strong>Thời lượng</strong>
+                <div className="duration-options">
+                  {durationOptions.map((item) => (
+                    <button
+                      type="button"
+                      className={durationHours === item ? 'active' : ''}
+                      key={item}
+                      onClick={() => {
+                        setDurationHours(item)
+                        setSelectedTime('')
+                      }}
+                    >
+                      {item}h
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="booking-control-group">
+              <strong>Chọn giờ bắt đầu</strong>
+              {loadingBookingData && <p className="muted-note">Đang tải lịch trống...</p>}
+              <div className="booking-slot-grid">
+                {!loadingBookingData && slots.length === 0 && (
+                  <p className="empty-text">Không còn slot phù hợp trong ngày này.</p>
+                )}
+                {slots.map((slot) => {
+                  const available = slot.status === 'available' && hasAvailableDuration(slots, slot.startTime, durationHours)
+                  return (
+                    <button
+                      type="button"
+                      className={`${selectedTime === slot.startTime ? 'active' : ''} ${available ? '' : 'disabled'}`}
+                      key={`${slot.startTime}-${slot.endTime}`}
+                      disabled={!available}
+                      onClick={() => setSelectedTime(slot.startTime)}
+                    >
+                      <span>{slot.startTime}</span>
+                      <small>{available ? formatMoney(calculateBookingTotal(slots, slot.startTime, durationHours)) : slotStatusLabels[slot.status] || 'Không đủ slot'}</small>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </article>
+
+          <article className="booking-step-card">
+            <div className="booking-step-title">
+              <span>3</span>
+              <h2>Thông tin liên hệ</h2>
+            </div>
+            <div className="booking-contact-grid">
+              <label>
+                Họ tên *
+                <input name="fullName" value={contact.fullName} onChange={updateContact} placeholder="Nguyễn Văn A" required />
+              </label>
+              <label>
+                Số điện thoại *
+                <input name="phone" value={contact.phone} onChange={updateContact} placeholder="0901234567" required />
+              </label>
+              <label>
+                Email
+                <input name="email" type="email" value={contact.email} onChange={updateContact} placeholder="email@gmail.com" />
+              </label>
+              <label className="booking-note-field">
+                Ghi chú
+                <textarea name="note" value={contact.note} onChange={updateContact} placeholder="Yêu cầu đặc biệt..." />
+              </label>
+            </div>
+          </article>
+        </div>
+
+        <aside className="booking-summary-panel">
+          <h2>Tóm tắt</h2>
+          <dl>
+            <div><dt>Cơ sở</dt><dd>{activeCourt.venueName || 'Pickleball Ha Noi'}</dd></div>
+            <div><dt>Sân</dt><dd>{activeCourt.code} - {activeCourt.name}</dd></div>
+            <div><dt>Ngày</dt><dd>{formatDateDisplay(selectedDate)}</dd></div>
+            <div><dt>Giờ</dt><dd>{selectedTime ? `${selectedTime} - ${endTime}` : 'Chưa chọn'}</dd></div>
+            <div><dt>Thời lượng</dt><dd>{durationHours} giờ</dd></div>
+          </dl>
+          <div className="booking-total-row">
+            <strong>Tổng thanh toán</strong>
+            <span>{totalAmount ? formatFullMoney(totalAmount) : '-'}</span>
+          </div>
+          <button type="submit" className="primary-button wide" disabled={!canConfirm}>Xác nhận đặt sân</button>
+          <p>Lịch sẽ được giữ tối đa 10 phút sau khi xác nhận.</p>
+        </aside>
+      </form>
+    </section>
+  )
+}
+
+function BookingSummaryCard({ court, onBook }) {
   return (
     <article className="detail-card booking-summary">
-      <h2>{court.count} sân</h2>
+      <h2>{court.code}</h2>
       <dl>
+        <div><dt>Trạng thái</dt><dd>{court.statusLabel || court.status}</dd></div>
         <div><dt>Ngày đặt</dt><dd>Chọn ngày</dd></div>
         <div><dt>Giờ đặt</dt><dd>Chọn giờ</dd></div>
         <div><dt>Thời lượng</dt><dd>1 giờ</dd></div>
       </dl>
-      <button type="button" className="primary-button wide">Đặt sân ngay</button>
+      <button type="button" className="primary-button wide" onClick={() => onBook(court)}>Đặt sân ngay</button>
       <button type="button" className="secondary-button wide">Gọi: {court.hotline}</button>
       <p>Đặt cọc an toàn - Hủy trước 2h miễn phí</p>
     </article>
   )
 }
 
-function CourtCard({ court, view, onDetail }) {
+function CourtCard({ court, onDetail }) {
   const isOutdoor = court.type === 'outdoor'
   const image = isOutdoor ? courtOutdoor : courtIndoor
   const typeLabel = isOutdoor ? 'Sân ngoài trời' : 'Sân trong nhà'
@@ -2329,17 +2695,14 @@ function CourtCard({ court, view, onDetail }) {
       <div className="court-info">
         <div>
           <h2><span className="court-dot" />{court.name}</h2>
-          <p><span className="pin-dot" />{court.district}</p>
+          <p><span className="pin-dot" />{court.code} · {court.district}</p>
           <span>{typeLabel}</span>
         </div>
-        <strong>{court.count} sân</strong>
+        <strong>{court.statusLabel || court.status}</strong>
       </div>
-      {view === 'list' && (
-        <div className="court-actions">
-          <button type="button" className="secondary-button small" onClick={() => onDetail(court)}>Chi tiết</button>
-          <button type="button" className="primary-button small">Đặt sân</button>
-        </div>
-      )}
+      <div className="court-actions">
+        <button type="button" className="secondary-button small" onClick={() => onDetail(court)}>Chi tiết</button>
+      </div>
     </article>
   )
 }

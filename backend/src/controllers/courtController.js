@@ -52,6 +52,10 @@ function validateCourtPayload(payload) {
   return '';
 }
 
+function isPositiveInteger(value) {
+  return /^[1-9]\d*$/.test(String(value || ''));
+}
+
 async function listCourts(req, res) {
   try {
     const type = req.query.type || 'all';
@@ -61,7 +65,7 @@ async function listCourts(req, res) {
     }
 
     const result = await Court.list({ type, branchId });
-    return res.json({ success: true, ...result });
+    return res.json({ success: true, data: result, ...result });
   } catch (error) {
     console.error('List courts error:', error);
     return sendError(res, 500, 'Loi may chu khi tai danh sach san.');
@@ -70,12 +74,16 @@ async function listCourts(req, res) {
 
 async function courtDetail(req, res) {
   try {
+    if (!isPositiveInteger(req.params.id)) {
+      return sendError(res, 400, 'Ma san khong hop le.');
+    }
+
     const court = await Court.findById(req.params.id);
     if (!court) {
       return sendError(res, 404, 'Khong tim thay san.');
     }
 
-    return res.json({ success: true, court });
+    return res.json({ success: true, data: { court }, court });
   } catch (error) {
     console.error('Court detail error:', error);
     return sendError(res, 500, 'Loi may chu khi tai chi tiet san.');
@@ -84,6 +92,10 @@ async function courtDetail(req, res) {
 
 async function courtAvailability(req, res) {
   try {
+    if (!isPositiveInteger(req.params.id)) {
+      return sendError(res, 400, 'Ma san khong hop le.');
+    }
+
     const date = req.query.date;
     if (!isValidDate(date)) {
       return sendError(res, 400, 'Ngay xem lich phai co dinh dang YYYY-MM-DD.');
@@ -94,7 +106,7 @@ async function courtAvailability(req, res) {
       return sendError(res, 404, 'Khong tim thay san.');
     }
 
-    return res.json({ success: true, availability });
+    return res.json({ success: true, data: { availability }, availability });
   } catch (error) {
     console.error('Court availability error:', error);
     return sendError(res, 500, 'Loi may chu khi tai lich trong.');

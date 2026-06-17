@@ -97,6 +97,7 @@ function mapCourt(row, settings = null) {
     name: row.name,
     type: row.court_type,
     surfaceType: row.surface_type,
+    surfaceLabel: surfaceLabel(row.surface_type),
     basePricePerHour: Number(row.base_price_per_hour || 0),
     peakPricePerSlot: Number(row.peak_price_per_slot || 0),
     offPeakPricePerSlot: Number(row.off_peak_price_per_slot || 0),
@@ -345,7 +346,7 @@ async function availability(courtId, date) {
        AND bs.booking_date = :date
        AND b.booking_status IN ('pending', 'confirmed', 'checked_in')
      UNION ALL
-     SELECT start_time, end_time, status
+     SELECT start_time, end_time, 'held' AS status
      FROM slot_holds
      WHERE court_id = :courtId
        AND booking_date = :date
@@ -367,7 +368,7 @@ async function availability(courtId, date) {
     slots: slots.map((slot) => ({
       ...slot,
       price: findPrice(detail.priceRules, slot.startTime),
-      status: findOverlap(slot, occupied) ? 'booked' : 'available',
+      status: resolveSlotStatus(slot, occupied, detail.status),
     })),
   };
 }
@@ -396,6 +397,18 @@ function statusLabel(status) {
   };
 
   return labels[status] || status;
+}
+
+function surfaceLabel(surfaceType) {
+  const labels = {
+    standard: 'Tieu chuan',
+    premium: 'Cao cap',
+    synthetic: 'San tong hop',
+    concrete: 'Be tong',
+    wood: 'San go',
+  };
+
+  return labels[surfaceType] || surfaceType;
 }
 
 function isFutureSlot(date, startTime) {
@@ -430,7 +443,32 @@ function fromMinutes(total) {
 }
 
 function findOverlap(slot, occupied) {
-  return occupied.some((item) => slot.startTime < item.endTime && slot.endTime > item.startTime);
+  return occupied.find((item) => slot.startTime < item.endTime && slot.endTime > item.startTime);
+}
+
+function resolveSlotStatus(slot, occupied, courtStatus) {
+  if (courtStatus === 'maintenance') {
+    return 'maintenance';
+  }
+
+  if (courtStatus === 'inactive') {
+    return 'inactive';
+  }
+
+  const overlap = findOverlap(slot, occupied);
+  if (!overlap) {
+    return 'available';
+  }
+
+  if (overlap.status === 'held' || overlap.status === 'pending') {
+    return 'held';
+  }
+
+  if (overlap.status === 'checked_in') {
+    return 'in_use';
+  }
+
+  return 'booked';
 }
 
 function findPrice(priceRules, startTime) {

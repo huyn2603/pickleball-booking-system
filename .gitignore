@@ -9,7 +9,6 @@ yarn-error.log*
 # =========================================
 # 2. BIẾN MÔI TRƯỜNG (Tuyệt đối không push các file này)
 # =========================================
-.env
 .env.local
 .env.development.local
 .env.test.local

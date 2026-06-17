@@ -13,7 +13,28 @@ const allowedOrigins = (
   .split(',')
   .map((origin) => origin.trim());
 
-app.use(cors({ origin: allowedOrigins }));
+function isAllowedOrigin(origin) {
+  if (!origin) {
+    return true;
+  }
+
+  if (allowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  try {
+    const url = new URL(origin);
+    return ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+app.use(cors({
+  origin(origin, callback) {
+    callback(null, isAllowedOrigin(origin));
+  },
+}));
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
