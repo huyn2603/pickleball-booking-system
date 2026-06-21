@@ -30,6 +30,9 @@ Backend hien co cac endpoint auth:
 - `POST /api/auth/forgot-password/reset`
 - `POST /api/auth/password`
 - `GET /api/auth/me`
+- `POST /api/bookings/hold`
+- `POST /api/bookings/from-hold`
+- `GET /api/bookings/my`
 
 Bien moi truong de bat nut dang nhap Gmail:
 

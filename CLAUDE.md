@@ -168,6 +168,9 @@ Courts:
 - `PATCH /api/courts/:id`
 - `DELETE /api/courts/:id`
 - `GET /api/courts/:id/availability`
+- `POST /api/bookings/hold`
+- `POST /api/bookings/from-hold`
+- `GET /api/bookings/my`
 
 Staff:
 

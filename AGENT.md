@@ -153,6 +153,9 @@ Quy tac du lieu:
 - `PATCH /api/courts/:id`
 - `DELETE /api/courts/:id`
 - `GET /api/courts/:id/availability`
+- `POST /api/bookings/hold`
+- `POST /api/bookings/from-hold`
+- `GET /api/bookings/my`
 - `GET /api/staff/dashboard`
 - `POST /api/staff/bookings/:id/check-in`
 - `POST /api/staff/bookings/:id/check-out`

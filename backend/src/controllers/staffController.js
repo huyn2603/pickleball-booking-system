@@ -1,4 +1,5 @@
 const Staff = require('../models/Staff');
+const Booking = require('../models/Booking');
 
 function sendError(res, status, message) {
   return res.status(status).json({ success: false, message });
@@ -41,6 +42,8 @@ async function dashboard(req, res) {
     if (!isValidDate(date)) {
       return sendError(res, 400, 'Ngay phai co dinh dang YYYY-MM-DD.');
     }
+
+    await Booking.expirePendingBookings();
 
     const [bookings, addons] = await Promise.all([
       Staff.listTodayBookings(date),

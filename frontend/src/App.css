@@ -587,6 +587,59 @@ select:focus {
   gap: 18px;
 }
 
+.my-bookings-layout {
+  width: min(1220px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+
+.compact-actions {
+  margin-top: 0;
+  justify-content: flex-end;
+}
+
+.booking-history-list {
+  display: grid;
+  gap: 12px;
+}
+
+.booking-history-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  padding: 16px;
+  background: #f9fafb;
+}
+
+.booking-history-card > div {
+  display: grid;
+  gap: 5px;
+}
+
+.booking-history-card > div:last-of-type {
+  justify-items: end;
+  text-align: right;
+}
+
+.booking-history-card span,
+.booking-history-card small {
+  color: var(--mute);
+  font-weight: 800;
+}
+
+.booking-history-card code {
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: var(--canvas);
+  color: #172033;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 .owner-workspace {
   width: min(1220px, calc(100% - 48px));
   margin: 0 auto;
@@ -2208,7 +2261,8 @@ select:focus {
   .category-strip,
   .management-grid,
   .owner-workspace,
-  .staff-workspace {
+  .staff-workspace,
+  .my-bookings-layout {
     width: calc(100% - 28px);
   }
 
@@ -2234,6 +2288,16 @@ select:focus {
   .account-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .booking-history-card {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .booking-history-card > div:last-of-type {
+    justify-items: start;
+    text-align: left;
   }
 
   .courts-section {

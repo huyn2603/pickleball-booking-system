@@ -335,6 +335,21 @@ async function availability(courtId, date) {
     return null;
   }
 
+  await query(
+    `UPDATE bookings
+     SET booking_status = 'expired',
+         payment_status = CASE WHEN payment_status = 'unpaid' THEN 'failed' ELSE payment_status END
+     WHERE booking_status = 'pending'
+       AND payment_status IN ('unpaid', 'pending')
+       AND expires_at IS NOT NULL
+       AND expires_at <= NOW()`,
+  );
+  await query(
+    `UPDATE slot_holds
+     SET status = 'expired'
+     WHERE status = 'active' AND expires_at <= NOW()`,
+  );
+
   const slotMinutes = detail.settings?.slotMinutes || 60;
   const slots = buildSlots(detail.branch?.openTime || detail.settings?.openTime || '05:00', detail.branch?.closeTime || detail.settings?.closeTime || '22:00', slotMinutes)
     .filter((slot) => isFutureSlot(date, slot.startTime));

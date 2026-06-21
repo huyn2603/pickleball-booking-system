@@ -37,7 +37,7 @@ function formatDateDisplay(value) {
     return 'Chưa chọn'
   }
 
-  const [year, month, day] = String(value).split('-')
+  const [year, month, day] = String(value).slice(0, 10).split('-')
   return `${day}/${month}/${year}`
 }
 
@@ -175,6 +175,8 @@ function App() {
   const [accountsLoading, setAccountsLoading] = useState(false)
   const [staffDashboard, setStaffDashboard] = useState({ date: getTodayString(), bookings: [], addons: [] })
   const [staffLoading, setStaffLoading] = useState(false)
+  const [myBookings, setMyBookings] = useState([])
+  const [myBookingsLoading, setMyBookingsLoading] = useState(false)
   const [form, setForm] = useState({
     fullName: '',
     email: '',
@@ -295,6 +297,13 @@ function App() {
   useEffect(() => {
     if (session && (role === 'Staff' || role === 'Owner')) {
       fetchStaffDashboard()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.token, role])
+
+  useEffect(() => {
+    if (session && role === 'Customer') {
+      fetchMyBookings()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.token, role])
@@ -594,6 +603,21 @@ function App() {
     }))
   }
 
+  function showMyBookings() {
+    setAvatarMenuOpen(false)
+    setCourtTypeMenuOpen(false)
+    setEditingProfile(false)
+    resetNotice()
+
+    if (!session) {
+      showAuth('login')
+      return
+    }
+
+    setPage('my-bookings')
+    fetchMyBookings()
+  }
+
   function persistSession(nextSession) {
     localStorage.setItem('swp_token', nextSession.token)
     localStorage.setItem('swp_user', JSON.stringify(nextSession.user))
@@ -680,6 +704,31 @@ function App() {
       setMessageType('error')
     } finally {
       setStaffLoading(false)
+    }
+  }
+
+  async function fetchMyBookings() {
+    if (!session?.token || session.user?.role !== 'Customer') {
+      return
+    }
+
+    setMyBookingsLoading(true)
+    try {
+      const response = await fetch(`${API_URL}/bookings/my`, {
+        headers: { Authorization: `Bearer ${session.token}` },
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể tải lịch đặt sân của bạn.')
+      }
+
+      setMyBookings(data.data?.bookings || data.bookings || [])
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setMyBookingsLoading(false)
     }
   }
 
@@ -1133,6 +1182,7 @@ function App() {
     localStorage.removeItem('swp_user')
     setSession(null)
     setAccounts(null)
+    setMyBookings([])
     setAvatarMenuOpen(false)
     setAvatarSrc(defaultAvatar)
     setEditingProfile(false)
@@ -1187,6 +1237,9 @@ function App() {
               </div>
             )}
           </div>
+          {role === 'Customer' && (
+            <button type="button" onClick={showMyBookings}>Sân của tôi</button>
+          )}
           <button type="button" onClick={showManagement}>Phan mem quan ly</button>
           {role === 'Owner' && (
             <>
@@ -1225,6 +1278,12 @@ function App() {
                     <span className="menu-icon">i</span>
                     Xem thông tin cá nhân
                   </button>
+                  {role === 'Customer' && (
+                    <button type="button" onClick={showMyBookings} role="menuitem">
+                      <span className="menu-icon">B</span>
+                      Lịch đặt sân của tôi
+                    </button>
+                  )}
                   <button type="button" role="menuitem">
                     <span className="menu-icon">?</span>
                     Trợ giúp và hỗ trợ
@@ -1493,6 +1552,18 @@ function App() {
           onNotice={setBookingNotice}
           onBack={() => showCourtDetail(selectedCourt)}
           onChangeCourt={changeBookingCourt}
+          onViewMyBookings={showMyBookings}
+        />
+      )}
+
+      {page === 'my-bookings' && session && role === 'Customer' && (
+        <MyBookingsPage
+          bookings={myBookings}
+          loading={myBookingsLoading}
+          message={message}
+          messageType={messageType}
+          onRefresh={fetchMyBookings}
+          onBookAnother={showCourts}
         />
       )}
 
@@ -1597,6 +1668,76 @@ function ProfileCard({ user }) {
         <div><dt>Vai trò</dt><dd>{roleLabels[user.role] || user.role}</dd></div>
         <div><dt>Trạng thái</dt><dd>{user.status}</dd></div>
       </dl>
+    </article>
+  )
+}
+
+function MyBookingsPage({ bookings, loading, message, messageType, onRefresh, onBookAnother }) {
+  const activeStatuses = ['pending', 'confirmed', 'checked_in']
+  const activeBookings = bookings.filter((booking) => activeStatuses.includes(booking.bookingStatus))
+  const historyBookings = bookings.filter((booking) => !activeStatuses.includes(booking.bookingStatus))
+
+  return (
+    <section className="dashboard-section" aria-label="Lịch đặt sân của tôi">
+      <header className="dashboard-header">
+        <div>
+          <span className="hero-badge dark">Booking</span>
+          <h1>Sân của tôi</h1>
+        </div>
+        <div className="profile-actions compact-actions">
+          <button type="button" className="secondary-button" onClick={onRefresh} disabled={loading}>
+            {loading ? 'Đang tải...' : 'Tải lại'}
+          </button>
+          <button type="button" className="primary-button" onClick={onBookAnother}>Đặt sân mới</button>
+        </div>
+      </header>
+
+      {message && <p className={`message ${messageType}`}>{message}</p>}
+
+      <section className="my-bookings-layout">
+        <BookingListPanel
+          title="Đang và sắp tới"
+          bookings={activeBookings}
+          empty="Bạn chưa có sân đang đặt hoặc sắp tới."
+          loading={loading}
+        />
+        <BookingListPanel
+          title="Đã đặt trước đây"
+          bookings={historyBookings}
+          empty="Chưa có lịch sử đặt sân."
+          loading={loading}
+        />
+      </section>
+    </section>
+  )
+}
+
+function BookingListPanel({ title, bookings, empty, loading }) {
+  return (
+    <article className="staff-panel booking-history-panel">
+      <div className="panel-heading">
+        <h2>{title}</h2>
+        <span>{loading ? '...' : bookings.length}</span>
+      </div>
+      <div className="booking-history-list">
+        {loading && <p className="empty-text">Đang tải lịch đặt sân...</p>}
+        {!loading && bookings.length === 0 && <p className="empty-text">{empty}</p>}
+        {bookings.map((booking) => (
+          <article className="booking-history-card" key={booking.id}>
+            <div>
+              <strong>{booking.courtCode} - {booking.courtName}</strong>
+              <span>{formatDateDisplay(booking.bookingDate)} | {booking.startTime || '--'} - {booking.endTime || '--'}</span>
+              <small>{booking.branchName || 'Pickleball Hà Nội'}</small>
+            </div>
+            <div>
+              <span className={`status-pill ${booking.bookingStatus}`}>{bookingStatusLabels[booking.bookingStatus] || booking.bookingStatus}</span>
+              <span>{paymentStatusLabels[booking.paymentStatus] || booking.paymentStatus}</span>
+              <strong>{formatFullMoney(booking.totalAmount)}</strong>
+            </div>
+            <code>{booking.bookingCode}</code>
+          </article>
+        ))}
+      </div>
     </article>
   )
 }
@@ -2439,14 +2580,17 @@ function CourtDetailPage({ court, token, onBack, onBook }) {
   )
 }
 
-function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCourt }) {
+function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCourt, onViewMyBookings }) {
   const [courtDetail, setCourtDetail] = useState(court)
   const [availability, setAvailability] = useState(null)
   const [selectedDate, setSelectedDate] = useState(getTodayString)
   const [durationHours, setDurationHours] = useState(1)
   const [selectedTime, setSelectedTime] = useState('')
   const [loadingBookingData, setLoadingBookingData] = useState(false)
+  const [bookingSubmitting, setBookingSubmitting] = useState(false)
   const [bookingError, setBookingError] = useState('')
+  const [holdResult, setHoldResult] = useState(null)
+  const [bookingResult, setBookingResult] = useState(null)
   const [contact, setContact] = useState({
     fullName: user.fullName || '',
     phone: user.phone || '',
@@ -2458,6 +2602,14 @@ function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCou
   const endTime = selectedTime ? addHoursToTime(selectedTime, durationHours) : ''
   const totalAmount = selectedTime ? calculateBookingTotal(slots, selectedTime, durationHours) : 0
   const canConfirm = selectedTime && contact.fullName.trim() && contact.phone.trim() && totalAmount > 0
+  const selectableSlotCount = slots.filter((slot) => slot.status === 'available' && hasAvailableDuration(slots, slot.startTime, durationHours)).length
+  const submitHint = selectedTime
+    ? 'Lịch sẽ được giữ tối đa 10 phút sau khi xác nhận.'
+    : loadingBookingData
+      ? 'Đang tải lịch trống của sân.'
+      : selectableSlotCount > 0
+        ? 'Chọn một giờ bắt đầu ở bên trái để tiếp tục đặt sân.'
+        : 'Ngày này không còn khung giờ phù hợp, vui lòng chọn ngày khác.'
   const durationOptions = [1, 1.5, 2]
 
   useEffect(() => {
@@ -2465,6 +2617,8 @@ function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCou
 
     async function fetchBookingData() {
       setSelectedTime('')
+      setHoldResult(null)
+      setBookingResult(null)
       onNotice('')
       setLoadingBookingData(true)
       setBookingError('')
@@ -2518,15 +2672,68 @@ function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCou
     }))
   }
 
-  function confirmBooking(event) {
+  async function confirmBooking(event) {
     event.preventDefault()
 
     if (!canConfirm) {
-      onNotice('Vui lòng chọn sân, ngày, giờ bắt đầu và nhập đủ họ tên, số điện thoại.')
+      if (!selectedTime) {
+        onNotice(submitHint)
+        return
+      }
+
+      if (!contact.fullName.trim() || !contact.phone.trim()) {
+        onNotice('Vui lòng nhập đủ họ tên và số điện thoại.')
+        return
+      }
+
+      onNotice('Khung giờ này chưa có giá hợp lệ, vui lòng chọn khung giờ khác.')
       return
     }
 
-    onNotice('Chức năng xác nhận đặt sân đang được hoàn thiện. Vui lòng liên hệ nhân viên để được hỗ trợ.')
+    if (bookingResult) {
+      return
+    }
+
+    setBookingSubmitting(true)
+    setBookingError('')
+    onNotice('')
+
+    try {
+      const endpoint = holdResult ? `${API_URL}/bookings/from-hold` : `${API_URL}/bookings/hold`
+      const body = holdResult
+        ? { holdCode: holdResult.hold?.holdCode }
+        : {
+            courtId: activeCourt.id,
+            date: selectedDate,
+            startTime: selectedTime,
+            durationHours,
+          }
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể xử lý đặt sân. Vui lòng thử lại.')
+      }
+
+      if (holdResult) {
+        setBookingResult(data.data || data)
+        onNotice(data.message || 'Đã tạo yêu cầu đặt sân. Nhân viên sẽ xác nhận và hướng dẫn thanh toán.')
+      } else {
+        setHoldResult(data.data || data)
+        onNotice(data.message || 'Đã giữ lịch tạm thời. Vui lòng hoàn tất đặt sân trong 10 phút.')
+      }
+    } catch (error) {
+      setBookingError(error.message)
+    } finally {
+      setBookingSubmitting(false)
+    }
   }
 
   return (
@@ -2585,6 +2792,8 @@ function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCou
                       onClick={() => {
                         setDurationHours(item)
                         setSelectedTime('')
+                        setHoldResult(null)
+                        setBookingResult(null)
                       }}
                     >
                       {item}h
@@ -2609,7 +2818,11 @@ function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCou
                       className={`${selectedTime === slot.startTime ? 'active' : ''} ${available ? '' : 'disabled'}`}
                       key={`${slot.startTime}-${slot.endTime}`}
                       disabled={!available}
-                      onClick={() => setSelectedTime(slot.startTime)}
+                      onClick={() => {
+                        setSelectedTime(slot.startTime)
+                        setHoldResult(null)
+                        setBookingResult(null)
+                      }}
                     >
                       <span>{slot.startTime}</span>
                       <small>{available ? formatMoney(calculateBookingTotal(slots, slot.startTime, durationHours)) : slotStatusLabels[slot.status] || 'Không đủ slot'}</small>
@@ -2654,13 +2867,26 @@ function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCou
             <div><dt>Ngày</dt><dd>{formatDateDisplay(selectedDate)}</dd></div>
             <div><dt>Giờ</dt><dd>{selectedTime ? `${selectedTime} - ${endTime}` : 'Chưa chọn'}</dd></div>
             <div><dt>Thời lượng</dt><dd>{durationHours} giờ</dd></div>
+            {holdResult?.hold && <div><dt>Mã giữ lịch</dt><dd>{holdResult.hold.holdCode}</dd></div>}
+            {bookingResult?.booking && <div><dt>Mã booking</dt><dd>{bookingResult.booking.bookingCode}</dd></div>}
           </dl>
           <div className="booking-total-row">
             <strong>Tổng thanh toán</strong>
-            <span>{totalAmount ? formatFullMoney(totalAmount) : '-'}</span>
+            <span>{holdResult?.totalAmount ? formatFullMoney(holdResult.totalAmount) : totalAmount ? formatFullMoney(totalAmount) : '-'}</span>
           </div>
-          <button type="submit" className="primary-button wide" disabled={!canConfirm}>Xác nhận đặt sân</button>
-          <p>Lịch sẽ được giữ tối đa 10 phút sau khi xác nhận.</p>
+          <button type="submit" className="primary-button wide" disabled={bookingSubmitting || Boolean(bookingResult)}>
+            {bookingSubmitting
+              ? holdResult ? 'Đang tạo booking...' : 'Đang giữ lịch...'
+              : bookingResult ? 'Đã gửi yêu cầu'
+                : holdResult ? 'Hoàn tất đặt sân'
+                  : 'Xác nhận đặt sân'}
+          </button>
+          {bookingResult && (
+            <button type="button" className="secondary-button wide" onClick={onViewMyBookings}>
+              Xem lịch đặt của tôi
+            </button>
+          )}
+          <p>{bookingResult ? 'Yêu cầu đặt sân đã được gửi tới nhân viên.' : holdResult ? 'Lịch của bạn đang được giữ tạm thời trong 10 phút.' : submitHint}</p>
         </aside>
       </form>
     </section>
