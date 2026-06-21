@@ -8,9 +8,10 @@ import './App.css'
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 const PAYMENT_BANK = {
-  bankId: '970422',
-  accountNo: '0123456789',
-  accountName: 'PICKLEBALL BOOKING',
+  bankId: import.meta.env.VITE_VIETQR_BANK_ID || '970432',
+  bankName: import.meta.env.VITE_VIETQR_BANK_NAME || 'VPBank',
+  accountNo: import.meta.env.VITE_VIETQR_ACCOUNT_NO || '0365193003',
+  accountName: import.meta.env.VITE_VIETQR_ACCOUNT_NAME || 'NGUYEN DANG MINH',
 }
 
 const roleLabels = {
@@ -2682,6 +2683,47 @@ function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCou
     }
   }, [court.id, selectedDate, token, onNotice])
 
+  useEffect(() => {
+    if (!holdResult?.hold?.holdCode || bookingResult) {
+      return undefined
+    }
+
+    let cancelled = false
+    const checkPaymentStatus = async () => {
+      try {
+        const response = await fetch(`${API_URL}/bookings/payment-status/${encodeURIComponent(holdResult.hold.holdCode)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Không thể kiểm tra trạng thái thanh toán.')
+        }
+
+        const statusData = data.data || data
+        if (!cancelled && statusData.status === 'paid' && statusData.booking) {
+          setBookingResult({ booking: statusData.booking })
+          onNotice('CK thành công. Booking đã được xác nhận.')
+        }
+
+        if (!cancelled && statusData.status === 'expired') {
+          setHoldResult(null)
+          onNotice(statusData.message || 'Phiên thanh toán đã hết hạn, vui lòng chọn lại.')
+        }
+      } catch {
+        // Keep polling quietly; visible errors here would distract from the payment flow.
+      }
+    }
+
+    checkPaymentStatus()
+    const intervalId = window.setInterval(checkPaymentStatus, 5000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [holdResult?.hold?.holdCode, bookingResult, token, onNotice])
+
   function updateContact(event) {
     setContact((current) => ({
       ...current,
@@ -2741,7 +2783,7 @@ function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCou
 
       if (holdResult) {
         setBookingResult(data.data || data)
-        onNotice(data.message || 'Thanh toán thành công. Booking đã được xác nhận.')
+        onNotice(data.message || 'CK thành công. Booking đã được xác nhận.')
       } else {
         setHoldResult(data.data || data)
         onNotice(data.message || 'Đã giữ lịch tạm thời. Vui lòng quét QR và thanh toán trong 10 phút.')
@@ -2859,7 +2901,9 @@ function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCou
               <div className="payment-qr-layout">
                 <img src={paymentQrUrl} alt="QR chuyển khoản đặt sân" />
                 <dl>
-                  <div><dt>Ngân hàng</dt><dd>MB Bank</dd></div>
+                  <div><dt>Sân</dt><dd>{activeCourt.code} - {activeCourt.name}</dd></div>
+                  <div><dt>Ngày giờ</dt><dd>{formatDateDisplay(selectedDate)} · {selectedTime} - {endTime}</dd></div>
+                  <div><dt>Ngân hàng</dt><dd>{PAYMENT_BANK.bankName}</dd></div>
                   <div><dt>Số tài khoản</dt><dd>{PAYMENT_BANK.accountNo}</dd></div>
                   <div><dt>Chủ tài khoản</dt><dd>{PAYMENT_BANK.accountName}</dd></div>
                   <div><dt>Số tiền</dt><dd>{formatFullMoney(paymentAmount)}</dd></div>

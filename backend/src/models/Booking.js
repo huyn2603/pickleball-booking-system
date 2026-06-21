@@ -232,6 +232,20 @@ async function findBookingById(bookingId) {
   return mapBooking(rows[0]);
 }
 
+async function findBookingByPaymentReference(gatewayReference) {
+  const rows = await query(
+    `SELECT b.id
+     FROM payment_transactions pt
+     JOIN bookings b ON b.id = pt.booking_id
+     WHERE pt.gateway_reference = :gatewayReference
+       AND pt.status = 'success'
+     LIMIT 1`,
+    { gatewayReference },
+  );
+
+  return rows[0]?.id ? findBookingById(rows[0].id) : null;
+}
+
 async function expirePendingBookings() {
   await query(
     `UPDATE bookings
@@ -378,11 +392,12 @@ async function createHold({ customerId, courtId, bookingDate, startTime, duratio
   };
 }
 
-async function createBookingFromHold({ customerId, holdCode }) {
+async function confirmHoldPayment({ customerId = null, holdCode, paidAmount = null, rawResponse = null }) {
   let bookingId = null;
   let totalAmount = 0;
   let priceSlots = [];
   let transactionCode = '';
+  let existingBooking = null;
 
   await transaction(async (connection) => {
     await connection.execute(
@@ -396,7 +411,7 @@ async function createBookingFromHold({ customerId, holdCode }) {
               start_time, end_time, status, expires_at
        FROM slot_holds
        WHERE hold_code = :holdCode
-         AND customer_id = :customerId
+         AND (:customerId IS NULL OR customer_id = :customerId)
        LIMIT 1
        FOR UPDATE`,
       { holdCode, customerId },
@@ -408,6 +423,19 @@ async function createBookingFromHold({ customerId, holdCode }) {
     }
 
     if (hold.status !== 'active') {
+      const [paymentRows] = await connection.execute(
+        `SELECT booking_id
+         FROM payment_transactions
+         WHERE gateway_reference = :holdCode
+           AND status = 'success'
+         LIMIT 1`,
+        { holdCode },
+      );
+      if (paymentRows[0]?.booking_id) {
+        existingBooking = await findBookingById(paymentRows[0].booking_id);
+        return;
+      }
+
       throw createAppError('Lich dang giu khong con hieu luc.');
     }
 
@@ -443,6 +471,10 @@ async function createBookingFromHold({ customerId, holdCode }) {
       throw createAppError('Chua co bang gia hop le cho khung gio nay.');
     }
 
+    if (paidAmount !== null && Number(paidAmount) !== totalAmount) {
+      throw createAppError('So tien thanh toan khong khop voi tong tien dat san.');
+    }
+
     await connection.execute(
       `UPDATE slot_holds
        SET status = 'converted'
@@ -460,7 +492,7 @@ async function createBookingFromHold({ customerId, holdCode }) {
          :subTotal, 0, :totalAmount, 'paid', 'confirmed', 'online', NULL)`,
       {
         bookingCode,
-        customerId,
+        customerId: hold.customer_id,
         branchId: hold.branch_id,
         courtId: hold.court_id,
         bookingDate: hold.booking_date,
@@ -499,11 +531,11 @@ async function createBookingFromHold({ customerId, holdCode }) {
       {
         transactionCode,
         bookingId,
-        customerId,
+        customerId: hold.customer_id,
         amount: totalAmount,
         gatewayReference: hold.hold_code,
-        note: 'Online bank transfer confirmed from slot hold',
-        rawResponse: JSON.stringify({
+        note: 'VietQR bank transfer confirmed from slot hold',
+        rawResponse: JSON.stringify(rawResponse || {
           source: 'demo_bank_transfer',
           holdCode: hold.hold_code,
           confirmedAt: new Date().toISOString(),
@@ -512,7 +544,7 @@ async function createBookingFromHold({ customerId, holdCode }) {
     );
   });
 
-  const booking = await findBookingById(bookingId);
+  const booking = existingBooking || await findBookingById(bookingId);
   return {
     booking,
     payment: {
@@ -526,9 +558,44 @@ async function createBookingFromHold({ customerId, holdCode }) {
   };
 }
 
+async function createBookingFromHold({ customerId, holdCode }) {
+  return confirmHoldPayment({ customerId, holdCode });
+}
+
+async function getHoldPaymentStatus({ customerId, holdCode }) {
+  await expirePendingBookings();
+
+  const booking = await findBookingByPaymentReference(holdCode);
+  if (booking && Number(booking.customerId) === Number(customerId)) {
+    return {
+      status: 'paid',
+      booking,
+      message: 'CK thanh cong. Booking da duoc xac nhan.',
+    };
+  }
+
+  const hold = await findActiveHoldByCode(holdCode);
+  if (!hold || Number(hold.customerId) !== Number(customerId)) {
+    return {
+      status: 'expired',
+      booking: null,
+      message: 'Phien thanh toan da het han hoac khong ton tai.',
+    };
+  }
+
+  return {
+    status: 'waiting',
+    hold,
+    booking: null,
+    message: 'Dang cho giao dich chuyen khoan.',
+  };
+}
+
 module.exports = {
   createHold,
   createBookingFromHold,
+  confirmHoldPayment,
   expirePendingBookings,
+  getHoldPaymentStatus,
   listCustomerBookings,
 };

@@ -64,6 +64,8 @@ npm run dev
 - `GET /api/auth/me`
 - `POST /api/bookings/hold`
 - `POST /api/bookings/from-hold`
+- `GET /api/bookings/payment-status/:holdCode`
+- `POST /api/bookings/vietqr/webhook`
 - `GET /api/bookings/my`
 
 ## Important notes

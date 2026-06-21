@@ -490,6 +490,8 @@ VITE_GOOGLE_CLIENT_ID=your-google-web-client-id
 | GET    | `/api/auth/me`            | Lấy thông tin người dùng hiện tại |
 | POST   | `/api/bookings/hold`      | Giữ lịch đặt sân tạm thời 10 phút |
 | POST   | `/api/bookings/from-hold` | Ghi nhận thanh toán online và tạo booking confirmed từ lịch đang giữ |
+| GET    | `/api/bookings/payment-status/:holdCode` | Customer kiểm tra trạng thái CK VietQR |
+| POST   | `/api/bookings/vietqr/webhook` | Webhook nhận sao kê VietQR/Casso và tự confirm booking |
 | GET    | `/api/bookings/my`        | Customer xem sân đang đặt và lịch sử đặt sân của mình |
 
 ---

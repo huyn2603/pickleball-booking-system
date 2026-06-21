@@ -17,6 +17,27 @@ function parsePositiveInteger(value) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+function extractHoldCode(text) {
+  const match = String(text || '').match(/HOLD-[0-9]+-[A-Z0-9]+/i);
+  return match ? match[0].toUpperCase() : '';
+}
+
+function normalizeWebhookTransactions(body) {
+  if (Array.isArray(body?.data)) {
+    return body.data;
+  }
+
+  if (Array.isArray(body?.transactions)) {
+    return body.transactions;
+  }
+
+  if (body?.data && typeof body.data === 'object') {
+    return [body.data];
+  }
+
+  return [body || {}];
+}
+
 async function createHold(req, res) {
   try {
     if (req.user?.role !== 'Customer') {
@@ -116,6 +137,85 @@ async function createBookingFromHold(req, res) {
   }
 }
 
+async function paymentStatus(req, res) {
+  try {
+    if (req.user?.role !== 'Customer') {
+      return sendError(res, 403, 'Chi tai khoan Customer moi xem duoc trang thai thanh toan.');
+    }
+
+    const holdCode = String(req.params.holdCode || '').trim();
+    if (!holdCode) {
+      return sendError(res, 400, 'Ma giu lich khong hop le.');
+    }
+
+    const result = await Booking.getHoldPaymentStatus({
+      customerId: req.user.id,
+      holdCode,
+    });
+
+    return res.json({
+      success: true,
+      data: result,
+      ...result,
+    });
+  } catch (error) {
+    console.error('Payment status error:', error);
+    return sendError(res, error.status || 500, error.message || 'Loi may chu khi kiem tra thanh toan.');
+  }
+}
+
+async function vietQrWebhook(req, res) {
+  try {
+    const configuredSecret = process.env.VIETQR_WEBHOOK_SECRET || '';
+    if (configuredSecret) {
+      const receivedSecret = req.get('x-webhook-secret') || req.get('secure-token') || req.query.secret || '';
+      if (receivedSecret !== configuredSecret) {
+        return sendError(res, 401, 'Webhook token khong hop le.');
+      }
+    }
+
+    const transactions = normalizeWebhookTransactions(req.body);
+    const confirmed = [];
+    const ignored = [];
+
+    for (const item of transactions) {
+      const description = item.description || item.content || item.addInfo || item.memo || '';
+      const holdCode = extractHoldCode(description);
+      const amount = Number(item.amount || item.transferAmount || item.creditAmount || item.money || 0);
+
+      if (!holdCode || amount <= 0) {
+        ignored.push({ reason: 'missing_hold_or_amount', description });
+        continue;
+      }
+
+      try {
+        const result = await Booking.confirmHoldPayment({
+          holdCode,
+          paidAmount: amount,
+          rawResponse: item,
+        });
+        confirmed.push({
+          holdCode,
+          bookingCode: result.booking?.bookingCode,
+          amount,
+        });
+      } catch (error) {
+        ignored.push({ holdCode, reason: error.message });
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: confirmed.length ? 'Da ghi nhan giao dich VietQR.' : 'Khong co giao dich phu hop.',
+      confirmed,
+      ignored,
+    });
+  } catch (error) {
+    console.error('VietQR webhook error:', error);
+    return sendError(res, error.status || 500, error.message || 'Loi may chu khi xu ly webhook VietQR.');
+  }
+}
+
 async function listMyBookings(req, res) {
   try {
     if (req.user?.role !== 'Customer') {
@@ -138,4 +238,6 @@ module.exports = {
   createBookingFromHold,
   createHold,
   listMyBookings,
+  paymentStatus,
+  vietQrWebhook,
 };
