@@ -1,130 +1,275 @@
-# CLAUDE.md - Pickleball Booking System
+# CLAUDE.md - Pickleball Booking System v1.1
+## Hệ thống đặt sân pickleball nhiều chi nhánh nhỏ tại Hà Nội
 
-Huong dan lam viec cho Claude/Codex khi doc, sua va mo rong du an **Pickleball Booking System**.
+---
 
-## 1. Project Snapshot
+## TL;DR (Đọc trước - 60 giây)
 
-He thong dat san pickleball truc tuyen, phuc vu **nhieu chi nhanh nho tai Ha Noi**.
+> Đây là hệ thống đặt sân pickleball trực tuyến cho **nhiều chi nhánh nhỏ trong Hà Nội**.
+>
+> Backend: Node.js + Express + MySQL 8.0 + `mysql2/promise`
+> Frontend: React + Vite
+> Auth: HMAC token từ backend
+> Password: plain text theo yêu cầu hiện tại, không phải production best practice
+>
+> Branch model: `branches` -> `courts`; Staff/Owner có thể gắn `users.branch_id`.
+> Booking model: `slot_holds` giữ slot 10 phút; `bookings` + `booking_slots` chống trùng lịch.
 
-Nguoi dung co the:
+### Đọc trước
 
-- Xem san va lich trong theo chi nhanh.
-- Dat san, giu slot tam thoi, thanh toan va huy lich.
-- Xem lich su dat san va thong tin tai khoan.
+1. `AGENT.md` - constitution, forbidden patterns, domain invariants.
+2. `README.md` - project description, user stories, acceptance criteria.
+3. `database.md` - database model và quy tắc chi nhánh.
+4. `mysql-workbench-schema.sql` - schema/seed source of truth.
+5. File này - architecture, workflow, conventions và lessons learned.
 
-Nhan vien/Admin co the:
+---
 
-- Quan ly tai khoan, san, lich dat, trang thai san.
-- Check-in/check-out booking.
-- Ghi nhan thanh toan tai quay.
-- Quan ly dich vu kem va bao cao van hanh co ban.
+## KIẾN TRÚC HỆ THỐNG
 
-## 2. Tech Stack
-
-| Layer | Cong nghe |
-| --- | --- |
-| Frontend | React + Vite |
-| Backend | Node.js + Express |
-| Database | MySQL 8.0+ |
-| DB driver | `mysql2/promise` |
-| Auth | HMAC token |
-| Package manager | npm |
-
-Luu y bao mat:
-
-- Password hien dang luu plain text theo yeu cau hien tai cua du an.
-- Khong xem day la production best practice.
-- API khong duoc expose `password` trong response.
-
-## 3. Read First
-
-Truoc khi sua logic lon, doc nhanh cac file sau:
-
-1. `README.md` - tong quan san pham va workflow.
-2. `database.md` - thiet ke database theo nghiep vu hien tai.
-3. `mysql-workbench-schema.sql` - script import MySQL Workbench.
-4. `backend/src/config/db.js` - MySQL pool, query helper, transaction helper.
-5. `AGENT.md` - quy tac lam viec chung cua agent trong repo.
-
-Neu `database.md` va `mysql-workbench-schema.sql` khac nhau, uu tien hoi lai hoac dong bo ca hai file trong cung mot thay doi.
-
-## 4. Architecture
+### Sơ đồ tổng quan
 
 ```text
-React Frontend
-      |
-      | HTTP JSON
-      v
+React + Vite Frontend
+  - Customer booking flow
+  - Staff dashboard
+  - Admin/Owner management
+          |
+          | HTTP JSON
+          v
 Node.js Express API
-      |
-      | mysql2/promise
-      v
+  - Auth/account routes
+  - Court availability
+  - Booking/payment/refund workflow
+  - Staff operations
+          |
+          | mysql2/promise
+          v
 MySQL 8.0
+  - branches, courts
+  - slot_holds, bookings, booking_slots
+  - payment_transactions, refunds
+  - audit_logs, email_logs
 ```
 
-Backend layout:
+### Backend layer architecture
 
 ```text
-backend/src/
-  config/       database/env config
-  routes/       endpoint + middleware binding
-  controllers/  request validation co ban + response
-  models/       SQL query + row mapping
-  services/     business logic lon: booking, pricing, payment, refund
-  middleware/   auth, guard, error handling
-  utils/        token, password, mailer, Google auth helpers
+Route Layer
+  - endpoint definitions
+  - auth middleware binding
+        |
+        v
+Controller Layer
+  - request parsing
+  - basic validation
+  - response format
+        |
+        v
+Service Layer
+  - booking/payment/refund business logic
+  - transaction orchestration
+  - branch-aware invariants
+        |
+        v
+Model Layer
+  - SQL queries
+  - row mapping
+  - named placeholders
+        |
+        v
+MySQL
 ```
 
-Nguyen tac:
+### Repository structure
 
-- Controller giu mong, khong nhot business logic phuc tap.
-- Model chi nen chua query va map du lieu.
-- Nhieu thao tac ghi lien quan booking/payment/refund/voucher phai dung transaction.
-- Service la noi dat logic co nhieu buoc hoac can transaction.
+```text
+pickleball-booking-system/
+├── .agents/
+├── .sdd/
+├── .specify/
+├── backend/
+│   ├── app.js
+│   ├── server.js
+│   └── src/
+│       ├── config/
+│       ├── controllers/
+│       ├── middleware/
+│       ├── models/
+│       ├── routes/
+│       ├── services/
+│       └── utils/
+├── frontend/
+│   ├── public/
+│   └── src/
+├── AGENT.md
+├── CLAUDE.md
+├── README.md
+├── database.md
+├── IMPLEMENTATION.md
+├── mysql-workbench-import.md
+└── mysql-workbench-schema.sql
+```
 
-## 5. Database Scope
+---
 
-Database phuc vu nhieu chi nhanh nho trong Ha Noi, khong multi-tenant theo cong ty rieng biet.
+## QUYẾT ĐỊNH KIẾN TRÚC QUAN TRỌNG (ADR)
 
-Dung:
+### ADR-001: Node.js + Express cho backend
 
-- `settings` cho cau hinh chung toan he thong.
-- `branches` cho tung chi nhanh trong Ha Noi.
-- `courts` cho san con thuoc chi nhanh.
-- `roles` va `users` cho phan quyen.
-- `bookings`, `booking_slots`, `slot_holds` cho dat san va giu slot.
-- `promotions`, `vouchers` cho khuyen mai.
-- `payment_transactions`, `refunds` cho thanh toan va hoan tien.
+Quyết định: Giữ backend Node.js + Express theo code hiện tại.
+Lý do: Phù hợp repo hiện có, đơn giản cho REST API, dễ phát triển nhanh trong Sprint 1.
+Trade-off: Cần kỷ luật service/transaction rõ để tránh controller quá dày.
+Status: Approved.
 
-Khong tu y them:
+### ADR-002: MySQL 8.0 + mysql2/promise
 
-- Multi-region ngoai Ha Noi.
+Quyết định: Dùng MySQL 8.0 và `mysql2/promise`, không chuyển sang ORM khác.
+Lý do: Schema đã được thiết kế cho MySQL Workbench, có trigger chống overlap và seed data.
+Trade-off: Query thủ công phải cẩn thận parameterized SQL.
+Status: Approved.
+
+### ADR-003: Branch-aware model, không multi-tenant
+
+Quyết định: Dùng `branches` cho nhiều chi nhánh nhỏ trong Hà Nội; không tạo tenant/company isolation.
+Lý do: Nghiệp vụ cần nhiều địa điểm vận hành nhưng vẫn là một hệ thống/brand.
+Trade-off: Nếu sau này mở rộng franchise/multi-city cần refactor scope.
+Status: Approved.
+
+### ADR-004: Backend owns pricing
+
+Quyết định: Backend tính toàn bộ tiền sân/addon/discount bằng `price_rules`.
+Lý do: Tránh gian lận hoặc sai lệch từ frontend.
+Trade-off: Frontend phải gọi API preview/quote thay vì tự tính tổng.
+Status: Approved.
+
+### ADR-005: Hybrid SDD + ADD workflow
+
+Quyết định: Dùng spec cho phần rủi ro cao và agent cho implementation lặp nhanh.
+Lý do: Theo playbook Spec-Driven & Agent-Driven Development, spec bảo vệ correctness, agent tăng tốc delivery.
+Trade-off: Cần giữ docs/spec/code đồng bộ để tránh context drift.
+Status: Approved.
+
+---
+
+## NHỮNG GÌ CẦN GHI NHỚ (Lessons Learned)
+
+### LESSON-001: README phải khớp schema
+
+README từng nói "một cơ sở" trong khi database đã có `branches`. Khi sửa scope, phải kiểm tra cả README, database docs, SQL seed, AGENT và CLAUDE.
+
+### LESSON-002: Branch là business boundary
+
+Không chỉ filter UI. Booking, slot hold, price rule, dashboard và staff scope đều cần hiểu `branch_id`.
+
+### LESSON-003: Double-booking là lỗi nghiêm trọng nhất
+
+Mọi thay đổi vào availability, slot hold, booking slot hoặc booking status phải xem lại active statuses và trigger overlap.
+
+### LESSON-004: Plain text password là constraint tạm thời
+
+Repo hiện theo yêu cầu plain text password, nhưng mọi tài liệu/code liên quan phải nhắc rõ đây không phải production best practice và không được expose password.
+
+---
+
+## DEVELOPMENT WORKFLOW
+
+### Standard Hybrid Flow
+
+```text
+Idea
+  -> Spec / clarify scope
+  -> Plan
+  -> Implement with agent
+  -> Validate by tests + spec checklist
+  -> Human review
+  -> Update docs if behavior changed
+```
+
+### Khi nào dùng SDD
+
+Use Full/Standard spec for:
+
+- Database schema and migrations.
+- API contracts and response format.
+- Booking concurrency and slot overlap rules.
+- Payment/refund transaction flow.
+- Auth/security and RBAC.
+- Any branch scope rule that affects data isolation.
+
+### Khi nào dùng ADD
+
+Use agentic implementation for:
+
+- UI components and screens.
+- Boilerplate route/controller/model patterns.
+- Focused docs updates.
+- Test scaffolding.
+- Small refactors with clear constraints.
+
+### Validation Gate
+
+Sau khi agent báo "done", không tin bằng cảm giác. Kiểm tra:
+
+1. Automated checks: `node --check`, tests/build/lint nếu có.
+2. Spec compliance: từng acceptance scenario còn đúng không.
+3. Constitution compliance: có vi phạm `AGENT.md` không.
+4. System fit: không phá branch boundary, pricing, auth, transaction.
+
+---
+
+## DATABASE SCOPE
+
+Database phục vụ nhiều chi nhánh nhỏ trong Hà Nội, không multi-tenant theo công ty riêng biệt.
+
+Dùng:
+
+- `settings` cho cấu hình chung toàn hệ thống.
+- `branches` cho từng chi nhánh trong Hà Nội.
+- `courts` cho sân con thuộc chi nhánh.
+- `roles` và `users` cho phân quyền; Staff/Owner có thể gắn `branch_id`.
+- `price_rules` cho giá theo toàn hệ thống, chi nhánh hoặc sân.
+- `slot_holds`, `bookings`, `booking_slots` cho đặt sân và giữ slot.
+- `promotions`, `vouchers` cho khuyến mãi.
+- `payment_transactions`, `refunds` cho thanh toán và hoàn tiền.
+- `audit_logs` cho lịch sử thao tác quản trị/nghiệp vụ.
+
+Không tự ý thêm:
+
+- Multi-region ngoài Hà Nội.
 - Multi-tenant/company isolation.
-- Stack database khac MySQL.
+- Database stack khác MySQL.
+- Entity `clubs`, `regions` hoặc tenant fields nếu chưa có spec mở rộng.
 
-## 6. Business Rules
+---
 
-- Email user bat buoc ket thuc bang `@gmail.com`.
-- Khong dat san trong qua khu.
-- Khong cho double-booking.
-- Slot hold mac dinh 10 phut.
-- Gio mo cua mac dinh: `05:00` - `22:00`.
-- Gio cao diem mac dinh: `17:00` - `21:00`.
-- Backend tinh tien, khong tin tong tien tu frontend.
-- Transaction data khong xoa vat ly; cap nhat bang `status`.
-- Staff/Owner co the gan voi `branch_id` de gioi han pham vi van hanh.
-- Booking phai gan voi chi nhanh cua san duoc dat.
+## BUSINESS RULES
+
+- Email user bắt buộc kết thúc bằng `@gmail.com`.
+- Không đặt sân trong quá khứ.
+- Không cho double-booking.
+- Slot hold mặc định 10 phút.
+- Giờ mở cửa mặc định: `05:00` - `22:00`.
+- Giờ cao điểm mặc định: `17:00` - `21:00`.
+- Backend tính tiền, không tin tổng tiền từ frontend.
+- Transaction data không xóa vật lý; cập nhật bằng `status`.
+- Staff/Owner có thể gắn với `branch_id` để giới hạn phạm vi vận hành.
+- Booking phải gắn với chi nhánh của sân được đặt.
+- Payment success phải update payment + booking trong cùng transaction.
+- Refund/cancellation phải ghi lại dữ liệu audit/log cần thiết.
 
 Booking statuses:
 
-| Nhom | Status |
+| Nhóm | Status |
 | --- | --- |
-| Chiem san | `pending`, `confirmed`, `checked_in` |
-| Khong chiem san | `cancelled`, `expired`, `completed`, `no_show` |
+| Chiếm sân | `pending`, `confirmed`, `checked_in` |
+| Không chiếm sân | `cancelled`, `expired`, `completed`, `no_show` |
 
-## 7. API Response Format
+---
 
-Thanh cong:
+## API RESPONSE FORMAT
+
+Thành công:
 
 ```json
 {
@@ -133,7 +278,7 @@ Thanh cong:
 }
 ```
 
-Loi:
+Lỗi:
 
 ```json
 {
@@ -142,7 +287,9 @@ Loi:
 }
 ```
 
-## 8. Current API
+---
+
+## CURRENT API
 
 Auth/account:
 
@@ -184,9 +331,11 @@ System:
 
 - `GET /api/health`
 
-## 9. Env Config
+---
 
-Tao `backend/.env` dua tren `backend/.env.example`:
+## ENV CONFIG
+
+Tạo `backend/.env` dựa trên `backend/.env.example` nếu có:
 
 ```env
 PORT=5000
@@ -199,50 +348,136 @@ DB_CONNECTION_LIMIT=10
 AUTH_TOKEN_SECRET=replace_this_secret
 ```
 
-Khong commit `.env` that, DB password, token secret, payment secret hoac API key production.
+Không commit `.env` thật, DB password, token secret, payment secret hoặc API key production.
 
-## 10. Coding Rules
+---
 
-- Giu JavaScript CommonJS theo code hien tai.
-- Dung `mysql2/promise`, khong dung Mongoose/JPA/Hibernate.
-- SQL dung named placeholders.
-- Khong noi chuoi input user truc tiep vao SQL.
-- Ten bien/function bang tieng Anh ro nghia.
-- Khong refactor rong ngoai scope.
-- Khong hard-code secret.
-- Khong them `console.log` moi cho production logging.
-- Khi sua JS quan trong, chay `node --check` cho file lien quan.
-- Khi them/sua endpoint, cap nhat docs lien quan neu can.
+## CODING RULES
 
-## 11. Frontend Rules
+- Giữ JavaScript CommonJS theo code hiện tại.
+- Dùng `mysql2/promise`, không dùng Mongoose/JPA/Hibernate.
+- SQL dùng named placeholders hoặc parameterized queries.
+- Không nối chuỗi input user trực tiếp vào SQL.
+- Tên biến/function bằng tiếng Anh rõ nghĩa.
+- Không refactor rộng ngoài scope.
+- Không hard-code secret.
+- Không thêm `console.log` mới cho production logging.
+- Khi sửa JS quan trọng, chạy `node --check` cho file liên quan.
+- Khi thêm/sửa endpoint, cập nhật docs liên quan nếu cần.
+- Khi sửa logic `branches`/`branch_id`, đồng bộ `database.md`, `mysql-workbench-schema.sql`, backend model/controller và seed data nếu bị ảnh hưởng.
 
-- Uu tien workflow that, khong tao landing page marketing khi dang lam chuc nang chinh.
-- Component React nen tach nho va de doc.
-- Khong tinh tong tien booking o frontend.
-- Form can co loading/error state.
-- Lich san can scan nhanh cac trang thai: trong, dang giu, da dat, dang su dung, bao tri.
-- UI quan ly nen gon, ro, phu hop tac vu lap lai cua Staff/Admin.
+---
 
-## 12. Definition of Done
+## FRONTEND RULES
 
-- Code chay duoc voi React + Node.js + MySQL.
-- Noi dung dung domain pickleball, khong con WMS/Spring/PostgreSQL.
-- Schema va docs khong mau thuan ve scope chi nhanh.
-- API khong expose `password`.
+- Ưu tiên workflow thật: chọn chi nhánh -> xem lịch -> giữ slot -> thanh toán -> lịch sử.
+- Không tạo landing page marketing khi đang làm chức năng chính.
+- Component React nên tách nhỏ và dễ đọc.
+- Không tính tổng tiền booking ở frontend.
+- Form cần có loading/error state.
+- Lịch sân cần scan nhanh trạng thái: trống, đang giữ, đã đặt, đang sử dụng, bảo trì.
+- UI quản lý nên gọn, rõ, phù hợp tác vụ lặp lại của Staff/Admin.
+- Khi hiển thị lịch/booking cho Staff, luôn xét phạm vi chi nhánh được phân công.
+
+---
+
+## NAMING CONVENTIONS
+
+| Type | Convention | Example |
+| --- | --- | --- |
+| React components | PascalCase | `CourtSchedule.jsx` |
+| JS functions | camelCase | `calculateBookingTotal()` |
+| API routes | kebab-case | `/api/court-availability` |
+| Database tables | snake_case | `slot_holds` |
+| Database columns | snake_case | `branch_id` |
+| Git branches | slash pattern | `feat/branch-aware-booking` |
+
+---
+
+## GIT CONVENTIONS
+
+### Branch naming
+
+```text
+feat/[feature-name]
+fix/[bug-name]
+spec/[feature-name]
+docs/[short-name]
+chore/[short-name]
+```
+
+### Commit format
+
+```text
+[type]([scope]): [description]
+```
+
+Examples:
+
+- `feat(booking): add branch-aware slot hold`
+- `fix(courts): prevent cross-branch availability leak`
+- `docs(readme): align scope with Hanoi branches`
+
+### Pull request rules
+
+- Minimum 1 approval before merge in team workflow.
+- Keep PRs focused by spec/feature.
+- All relevant checks should pass.
+- No TODO comments left in completed code.
+
+---
+
+## ANTI-PATTERNS (Tránh xa)
+
+### Code anti-patterns
+
+| Anti-pattern | Why it is bad | How to avoid |
+| --- | --- | --- |
+| Fat controller | Khó test, trộn business logic với HTTP | Move workflow logic to services |
+| SQL string concat | SQL injection risk | Use placeholders |
+| Frontend pricing | Dễ gian lận tổng tiền | Backend owns pricing |
+| Cross-branch leakage | Staff thấy/sửa dữ liệu sai chi nhánh | Always filter by branch scope |
+| Status deletion | Mất audit trail | Use status cancellation |
+
+### Agent anti-patterns
+
+| Anti-pattern | Why it is bad | How to avoid |
+| --- | --- | --- |
+| Vibe coding | Nhanh lúc đầu, dễ drift và nợ kỹ thuật | Start from README/spec/context |
+| Blind "done" trust | Agent confidence không đồng nghĩa correctness | Run validation gate |
+| Feature creep | Agent thêm ngoài yêu cầu | Compare diff with acceptance criteria |
+| Context conflict | AGENT/CLAUDE/README mâu thuẫn | Keep one source of truth per topic |
+
+---
+
+## DEFINITION OF DONE
+
+- Code chạy được với React + Node.js + MySQL.
+- Nội dung đúng domain pickleball, không còn WMS/Spring/PostgreSQL.
+- Schema và docs không mâu thuẫn về scope nhiều chi nhánh tại Hà Nội.
+- API không expose `password`.
 - Register validate email `@gmail.com`.
-- MySQL schema import duoc bang Workbench.
-- Nhieu thao tac ghi quan trong duoc boc transaction.
-- Cac file JS da sua pass `node --check` khi phu hop.
+- MySQL schema import được bằng Workbench nếu schema thay đổi.
+- Nhiều thao tác ghi quan trọng được bọc transaction.
+- Các file JS đã sửa pass `node --check` khi phù hợp.
+- Tests/build/lint liên quan đã chạy hoặc lý do không chạy được được báo rõ.
+- Acceptance criteria trong README/spec được kiểm lại sau thay đổi.
 
-## 13. Known Constraints
+---
 
-- Password plain text la yeu cau hien tai, khong phai khuyen nghi bao mat production.
-- MySQL local can dung user/password de import schema va chay backend.
-- Mot so API booking/payment/refund co the chua day du tuy theo sprint.
-- Khi sua logic `branches`/`branch_id`, can dong bo dong thoi `database.md`, `mysql-workbench-schema.sql`, backend model/controller va seed data.
+## KNOWN CONSTRAINTS
 
-## 14. Communication Style
+- Password plain text là yêu cầu hiện tại, không phải khuyến nghị bảo mật production.
+- MySQL local cần user/password để import schema và chạy backend.
+- Một số API booking/payment/refund có thể chưa đầy đủ tùy sprint.
+- Scope hiện tại là nhiều chi nhánh nhỏ trong Hà Nội, không phải multi-city hoặc multi-tenant.
+- Khi sửa branch-aware logic, cần kiểm tra cả docs, SQL, backend và frontend để tránh spec-code drift.
 
-- Tra loi ngan gon, noi ro file da sua.
-- Neu khong chay duoc test/import DB do thieu MySQL password, bao ro.
-- Neu gap mau thuan giua docs va schema, neu ro mau thuan va de xuat cach dong bo.
+---
+
+## COMMUNICATION STYLE
+
+- Trả lời ngắn gọn, nêu rõ file đã sửa.
+- Nêu rõ lệnh kiểm tra đã chạy và kết quả.
+- Nếu không chạy được test/import DB do thiếu MySQL password hoặc môi trường, báo rõ.
+- Nếu gặp mâu thuẫn giữa docs và schema, nêu rõ mâu thuẫn và đề xuất cách đồng bộ.

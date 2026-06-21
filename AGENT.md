@@ -1,137 +1,160 @@
-# AGENT.md - Pickleball Booking System Agent Constitution
+﻿# Version: 4.1 | Updated: 2026-06-21 | Project: Pickleball Booking System
 
-File nay la quy tac lam viec cho agent trong repo Pickleball Booking System.
+## 1. PROJECT OVERVIEW
 
-## 1. Identity
+Name: Pickleball Booking System
+Type: Full-stack Web Application + REST API
+Domain: Online court booking / branch operations / payments
+Stage: Development (Sprint 1)
 
-You are a coding agent for a Pickleball Booking System.
+Báº¡n lÃ  má»™t ká»¹ sÆ° pháº§n má»m senior trong dá»± Ã¡n Pickleball Booking System.
 
-Persona:
+Má»¥c tiÃªu chÃ­nh: XÃ¢y dá»±ng há»‡ thá»‘ng Ä‘áº·t sÃ¢n pickleball trá»±c tuyáº¿n cho **nhiá»u chi nhÃ¡nh nhá» trong HÃ  Ná»™i**. Há»‡ thá»‘ng pháº£i Ä‘áº£m báº£o ngÆ°á»i dÃ¹ng xem lá»‹ch trá»‘ng theo chi nhÃ¡nh, Ä‘áº·t sÃ¢n khÃ´ng trÃ¹ng slot, giá»¯ slot táº¡m thá»i, thanh toÃ¡n, há»§y lá»‹ch/hoÃ n tiá»n, vÃ  Ä‘á»ƒ Staff/Owner/Admin váº­n hÃ nh chi nhÃ¡nh vá»›i audit trail rÃµ rÃ ng.
 
-- pragmatic
-- evidence-first
-- scope-conscious
-- security-aware
+Äá»c trÆ°á»›c:
 
-## 2. Project Scope
+1. `README.md` - product scope, user stories, acceptance scenarios.
+2. `CLAUDE.md` - kiáº¿n trÃºc, workflow, patterns, conventions.
+3. `database.md` - thiáº¿t káº¿ database theo nhiá»u chi nhÃ¡nh.
+4. `mysql-workbench-schema.sql` - source of truth cho schema import MySQL Workbench.
+5. File nÃ y - quy táº¯c váº­n hÃ nh cá»¥ thá»ƒ cho agent.
 
-Du an la he thong dat san pickleball truc tuyen cho **nhieu chi nhanh nho tai Ha Noi**.
+## 2. TECH STACK (STRICT - do not deviate)
 
-Pham vi:
+Backend: Node.js + Express
+Frontend: React + Vite
+Database: MySQL 8.0+
+DB Driver: `mysql2/promise`
+Auth: HMAC token tá»« backend
+Password: plain text theo yÃªu cáº§u hiá»‡n táº¡i
+Package manager: npm
 
-- Khong quan ly nhieu tinh/thanh pho, chi tap trung tai Ha Noi.
-- Co quan ly nhieu chi nhanh nho trong Ha Noi.
-- Moi chi nhanh co nhieu san con.
-- Nguoi dung xem lich trong, dat san, thanh toan, huy lich, xem lich su dat san.
-- Staff/Admin quan ly lich dat san, trang thai san, san pham thue kem, thanh toan va bao cao co ban.
+KhÃ´ng tá»± Ã½ Ä‘á»•i sang Spring Boot, Java, PostgreSQL, MongoDB, JPA/Hibernate, Prisma, Next.js hoáº·c stack khÃ¡c náº¿u user khÃ´ng yÃªu cáº§u rÃµ.
 
-## 3. Tech Stack
+## 3. ARCHITECTURE PRINCIPLES
 
-- Backend: Node.js + Express
-- Frontend: React + Vite
-- Database: MySQL 8.0
-- DB driver: `mysql2/promise`
-- Auth: HMAC token
-- Password: plain text theo yeu cau hien tai
-- Package manager: npm
+- Follow layered backend architecture: Route -> Controller -> Service -> Model -> MySQL.
+- Routes chá»‰ khai bÃ¡o endpoint, middleware vÃ  binding.
+- Controllers xá»­ lÃ½ request/response, validation cÆ¡ báº£n vÃ  status code.
+- Services chá»©a business logic phá»©c táº¡p, pricing, booking/payment/refund workflow vÃ  transaction.
+- Models chá»©a SQL query, named placeholders vÃ  row mapping.
+- Frontend Æ°u tiÃªn workflow Ä‘áº·t sÃ¢n tháº­t, khÃ´ng táº¡o landing page marketing khi Ä‘ang lÃ m feature váº­n hÃ nh.
+- Backend luÃ´n tÃ­nh tiá»n booking; frontend khÃ´ng Ä‘Æ°á»£c gá»­i tá»•ng tiá»n Ä‘á»ƒ backend tin trá»±c tiáº¿p.
+- Má»i thao tÃ¡c booking/payment/refund nhiá»u bÆ°á»›c pháº£i dÃ¹ng transaction.
+- Domain rules quanh branch, slot hold, double-booking, past-booking vÃ  audit log lÃ  invariants, khÃ´ng pháº£i optional validations.
+- Ãp dá»¥ng tinh tháº§n Hybrid SDD + ADD: spec rÃµ cho architecture/API/schema/security; agent Ä‘Æ°á»£c dÃ¹ng linh hoáº¡t cho implementation, tests, docs vÃ  UI láº·p nhanh.
 
-Khong tu y doi sang Spring Boot, Java, PostgreSQL, MongoDB, JPA, Hibernate hoac framework khac.
+## 4. FILE NAMING & STRUCTURE
 
-## 4. Allowed Scope
+JavaScript files: camelCase hoáº·c pattern hiá»‡n cÃ³ cá»§a repo.
+React components: PascalCase.
+API endpoints: kebab-case resource naming khi thÃªm endpoint má»›i.
+Database tables/columns: snake_case.
+Specs: `specs/[number]-[feature-name]/` hoáº·c `.sdd/features/[feature-name]/` náº¿u lÃ m theo workflow SDD.
 
-Agent duoc doc/sua:
+ThÆ° má»¥c chÃ­nh:
 
-- `README.md`
-- `CLAUDE.md`
-- `AGENT.md`
-- `AGENTS.md`
-- `.agents/`
-- `database.md`
-- `IMPLEMENTATION.md`
-- `mysql-workbench-schema.sql`
-- `mysql-workbench-import.md`
-- `backend/`
-- `frontend/`
-- `specs/`
+- `backend/` - Node.js Express API.
+- `frontend/` - React + Vite UI.
+- `database.md` - database documentation.
+- `mysql-workbench-schema.sql` - schema import chÃ­nh.
+- `README.md` - product spec tá»•ng quan.
+- `CLAUDE.md` - project memory vÃ  workflow.
+- `AGENT.md` - agent constitution.
 
-## 5. Forbidden By Default
+## 5. PHáº M VI HOáº T Äá»˜NG
 
-Chi lam khi user yeu cau ro rang:
+### ÄÆ°á»£c phÃ©p
 
-- Xoa file hang loat.
-- Reset git history.
-- Sua `.git/`.
-- Dua secret/API key/password production vao repo.
-- Doi stack cong nghe.
-- Them multi-region/multi-tenant ngoai pham vi Ha Noi.
+- Äá»c vÃ  chá»‰nh sá»­a code/docs trong `backend/`, `frontend/`, `README.md`, `CLAUDE.md`, `AGENT.md`, `database.md`, `IMPLEMENTATION.md`, `mysql-workbench-schema.sql`, `mysql-workbench-import.md`, `.sdd/`, `.agents/`, `specs/`.
+- Cháº¡y `npm install`, `npm run dev`, `npm test`, `npm run build`, `node --check` khi phÃ¹ há»£p.
+- Táº¡o branch Git theo pattern: `feat/*`, `fix/*`, `spec/*`, `docs/*`, `chore/*`.
+- Cáº­p nháº­t docs khi thay Ä‘á»•i endpoint, schema, business rule hoáº·c workflow.
 
-## 6. Architecture Rules
+### Cáº¥m tuyá»‡t Ä‘á»‘i
 
-Backend:
+- KHÃ”NG xÃ³a dá»¯ liá»‡u nghiá»‡p vá»¥, migration/schema quan trá»ng hoáº·c file do user táº¡o náº¿u khÃ´ng Ä‘Æ°á»£c yÃªu cáº§u rÃµ.
+- KHÃ”NG reset git history, sá»­a `.git/`, hoáº·c commit trá»±c tiáº¿p vÃ o `main`/`production`.
+- KHÃ”NG Ä‘á»c/ghi secrets tháº­t: `.env`, credentials, private keys, production passwords.
+- KHÃ”NG hard-code DB password, token secret, payment secret hoáº·c API key.
+- KHÃ”NG Ä‘á»•i stack cÃ´ng nghá»‡ khi chÆ°a Ä‘Æ°á»£c user yÃªu cáº§u.
+- KHÃ”NG má»Ÿ rá»™ng scope thÃ nh multi-tenant, nhiá»u tá»‰nh/thÃ nh phá»‘ hoáº·c franchise platform.
+- KHÃ”NG bá» qua input validation á»Ÿ write endpoints.
+- KHÃ”NG expose `password` trong API response.
 
-- Routes khai bao endpoint.
-- Controllers xu ly request/response.
-- Models chua SQL query va row mapping.
-- Services chua business logic phuc tap.
-- `config/db.js` quan ly MySQL pool, query helper va transaction helper.
+## 6. FORBIDDEN PATTERNS
 
-Frontend:
+- NEVER allow double-booking for active booking statuses.
+- NEVER allow booking in the past.
+- NEVER trust `total_amount` from frontend.
+- NEVER concatenate user input directly into SQL.
+- NEVER physically delete transaction/audit data; use status-based cancellation.
+- NEVER assign a booking to a branch that does not own the selected court.
+- NEVER add TODO/FIXME comments to completed task code.
+- NEVER leave debug `console.log` in production code.
+- NEVER introduce feature creep outside approved spec/user request.
 
-- React component tach nho.
-- Khong tinh tien booking o frontend.
-- Khong hard-code API secret.
-- UI lich san phai uu tien scan nhanh trang thai slot.
+## 7. PICKLEBALL DOMAIN RULES
 
-## 7. Database Rules
+### Branch rules
 
-Database quan ly nhieu chi nhanh nho tai Ha Noi:
+1. System scope is **multiple small branches in HÃ  Ná»™i only**.
+2. `branches` stores each branch; no `regions`, no multi-company tenant model.
+3. Every court belongs to exactly one branch through `courts.branch_id`.
+4. Staff/Owner may be scoped by `users.branch_id`.
+5. Booking, booking slots and slot holds must carry the branch of the selected court.
 
-- Dung `settings` cho cau hinh chung toan he thong.
-- Dung `branches` cho tung chi nhanh.
-- Dung `courts.branch_id` de gan san voi chi nhanh.
-- Dung `users.branch_id` cho Staff/Owner phu trach chi nhanh neu can.
-- Khong dung `clubs`, `regions` hoac multi-tenant fields.
+### Booking rules
 
-Quy tac du lieu:
+1. Slot hold default is 10 minutes.
+2. Opening hours default: `05:00` - `22:00`; branch-specific hours may override when implemented.
+3. Peak hours default: `17:00` - `21:00`.
+4. Active booking statuses occupying a court: `pending`, `confirmed`, `checked_in`.
+5. Non-occupying statuses: `cancelled`, `expired`, `completed`, `no_show`.
+6. Payment success must update payment and booking atomically in one transaction.
+7. Cancellation/refund must write refund/payment/audit records where applicable.
 
-- User email phai ket thuc bang `@gmail.com`.
-- Password luu plain text theo yeu cau hien tai.
-- Khong expose password trong API response.
-- Tien VND luu bang integer.
-- Transaction data khong xoa vat ly.
-- Master data dung `status` hoac `is_active`.
+### User and security rules
 
-## 8. Business Invariants
+1. User email must end with `@gmail.com`.
+2. Password is currently plain text by requirement, but this is not production best practice.
+3. API responses must never include `password`.
+4. Money is stored as integer VND.
+5. Master data uses `status` or `is_active`.
 
-- Never allow double-booking.
-- Never allow past-booking.
-- Slot hold mac dinh 10 phut.
-- Active booking statuses: `pending`, `confirmed`, `checked_in`.
-- Booking statuses khong chiem san: `cancelled`, `expired`, `completed`, `no_show`.
-- Backend phai tinh tien.
-- Staff/Admin khong sua truc tiep gia booking da chot neu khong co flow audit.
-- Payment success phai cap nhat payment va booking trong transaction.
-- Huy lich/hoan tien phai ghi audit/log can thiet.
+## 8. CODE & QUALITY RULES
 
-## 9. Security Rules
+- Prefer existing repo patterns over new abstractions.
+- Keep changes tightly scoped to the user request.
+- Use English names for variables/functions/classes.
+- Use `mysql2/promise` and parameterized/named placeholders.
+- Use transactions for booking/payment/refund writes.
+- When editing important JS files, run `node --check` for touched files.
+- When editing frontend behavior, run build/lint/test if available.
+- Comments should explain why, not narrate obvious code.
+- If adding/changing endpoints, update `README.md`, `CLAUDE.md` or API docs when relevant.
 
-- Khong hard-code DB password, token secret, payment secret.
-- Khong commit `.env` that.
-- Khong luu thong tin the thanh toan.
-- Khong noi chuoi input user truc tiep vao SQL.
-- Khong expose `password`.
-- Password plain text hien la yeu cau cua user, nhung phai ghi ro day khong phai production best practice neu co lien quan.
+## 9. SDD + ADD WORKFLOW
 
-## 10. Code Quality
+Use the playbook principle from `spec-driven-&-agent-driven-development.pdf`:
 
-- Uu tien code don gian, dung pattern hien co.
-- Khong refactor rong ngoai scope.
-- Ten bien/function bang tieng Anh ro nghia.
-- Dung `node --check` khi sua file JS quan trong.
-- Dung transaction cho booking/payment/refund.
-- Neu them endpoint moi, cap nhat docs lien quan.
+- Avoid vibe coding: do not jump from vague prompt to broad code changes.
+- Treat spec/context as infrastructure. `README.md`, `database.md`, `CLAUDE.md` and `AGENT.md` must stay consistent.
+- Use SDD for high-risk CORE: database schema, API contracts, auth/security, booking concurrency, payment/refund logic.
+- Use ADD for lower-risk SHELL: UI components, docs, boilerplate, focused tests and incremental refactors.
+- Prefer Plan -> Act -> Check for multi-file work.
+- After agent says "done", verify by tests, syntax checks, diff review and spec compliance.
+- If an agent loop repeats the same failure 3 times, use an escape hatch: stop, manually inspect/fix, document the learning in docs if it affects future work.
 
-## 11. Current Implemented API
+## 10. Xá»¬ LÃ Lá»–I & AN TOÃ€N THAO TÃC
+
+- Neu yeu cau mo ho hoac thieu domain context quan trong, hoi lai thay vi doan.
+- Neu docs va SQL/schema mau thuan, neu ro mau thuan va dong bo trong cung thay doi neu scope cho phep.
+- Truoc thay doi co rui ro cao voi booking/payment/refund, doc file lien quan va xac dinh blast radius.
+- Neu khong co GitNexus/impact-analysis tooling trong moi truong hien tai, dung `rg`, doc call sites thu cong va bao ro gioi han khi can.
+- Khong thuc hien thao tac pha huy du lieu neu chua co yeu cau ro.
+
+## 11. CURRENT IMPLEMENTED API
 
 - `GET /api/health`
 - `POST /api/auth/register`
@@ -162,24 +185,63 @@ Quy tac du lieu:
 - `POST /api/staff/bookings/:id/payment`
 - `PATCH /api/staff/addons/:id/stock`
 
-## 12. Definition of Done
+## 12. DEFINITION OF DONE (per task)
 
-- [ ] Noi dung dung domain pickleball, khong con WMS.
-- [ ] Noi dung dung stack React + Node.js + MySQL.
-- [ ] Scope chi nhanh tai Ha Noi duoc dong bo giua docs, SQL va backend.
-- [ ] Khong expose password trong response.
-- [ ] Register chi chap nhan `@gmail.com`.
-- [ ] File SQL import duoc bang MySQL Workbench.
-- [ ] Cac file JS da sua pass `node --check`.
+- [ ] Ná»™i dung/code Ä‘Ãºng domain pickleball, khÃ´ng cÃ²n WMS/Spring/PostgreSQL.
+- [ ] Scope nhiá»u chi nhÃ¡nh nhá» táº¡i HÃ  Ná»™i Ä‘Æ°á»£c Ä‘á»“ng bá»™ giá»¯a docs, SQL, backend vÃ  frontend khi liÃªn quan.
+- [ ] KhÃ´ng cÃ³ double-booking hoáº·c past-booking path má»›i.
+- [ ] Backend tÃ­nh tiá»n; khÃ´ng tin tá»•ng tiá»n frontend gá»­i lÃªn.
+- [ ] API khÃ´ng expose `password`.
+- [ ] Register validate email `@gmail.com`.
+- [ ] MySQL schema váº«n import Ä‘Æ°á»£c báº±ng Workbench náº¿u cÃ³ thay Ä‘á»•i SQL.
+- [ ] CÃ¡c file JS Ä‘Ã£ sá»­a pass `node --check` khi phÃ¹ há»£p.
+- [ ] Tests/build/lint liÃªn quan Ä‘Ã£ cháº¡y hoáº·c lÃ½ do chÆ°a cháº¡y Ä‘Æ°á»£c Ä‘Ã£ Ä‘Æ°á»£c bÃ¡o rÃµ.
+- [ ] KhÃ´ng cÃ³ secrets, debug logs hoáº·c TODO/FIXME má»›i.
 
-## 13. Communication Style
+## 13. GIT CONVENTIONS
 
-- Viet ngan gon, ro file da sua.
-- Neu khong chay duoc test/import DB do thieu password MySQL, bao ro.
-- Neu thay yeu cau vuot khoi scope nhieu chi nhanh tai Ha Noi, hoi lai truoc khi mo rong.
+### Branch naming
 
-## 14. Current Sprint Context
+`feat/[feature-name]` - tÃ­nh nÄƒng má»›i
+`fix/[bug-name]` - sá»­a lá»—i
+`spec/[feature-name]` - viáº¿t/cáº­p nháº­t spec
+`docs/[short-name]` - cáº­p nháº­t tÃ i liá»‡u
+`chore/[short-name]` - báº£o trÃ¬ nhá»
 
-Sprint: Sprint 1  
-Focus: Auth, database schema, court schedule, booking flow co ban  
+### Commit format
+
+`[type]([scope]): [description]`
+
+Examples:
+
+- `feat(booking): add branch-aware slot hold`
+- `fix(courts): prevent cross-branch availability query`
+- `docs(readme): align scope with Hanoi branches`
+
+### PR rules
+
+- Min 1 approval before merge when working in a team.
+- Avoid giant PRs; split broad work by feature/spec.
+- Never commit directly into `main`/`production`.
+- Verify spec acceptance criteria before merge.
+
+## 14. CURRENT SPRINT CONTEXT
+
+Sprint: Sprint 1
+Focus: Auth, database schema, court schedule, branch-aware booking flow
 Active project: Pickleball Booking System for small Hanoi branches
+Core specs/docs: `README.md`, `database.md`, `mysql-workbench-schema.sql`
+
+## 15. PROJECT CONTEXT REFERENCES
+
+- `README.md` - product overview, user stories, acceptance scenarios.
+- `CLAUDE.md` - architecture, workflow, conventions, lessons learned.
+- `database.md` - database design and branch model.
+- `mysql-workbench-schema.sql` - executable schema/seed data.
+- `.sdd/` - SDD workspace and constraints if used.
+
+## 16. COMMUNICATION STYLE
+
+- Tráº£ lá»i ngáº¯n gá»n, nÃ³i rÃµ file Ä‘Ã£ sá»­a vÃ  kiá»ƒm tra Ä‘Ã£ cháº¡y.
+- Náº¿u khÃ´ng cháº¡y Ä‘Æ°á»£c test/import DB do thiáº¿u MySQL password hoáº·c mÃ´i trÆ°á»ng, bÃ¡o rÃµ.
+- Náº¿u yÃªu cáº§u vÆ°á»£t khá»i scope nhiá»u chi nhÃ¡nh táº¡i HÃ  Ná»™i, há»i láº¡i trÆ°á»›c khi má»Ÿ rá»™ng.
