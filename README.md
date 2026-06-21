@@ -4,7 +4,7 @@
 
 **Created**: 2026-05-26
 
-**Scope**: Một cơ sở pickleball tại Hà Nội
+**Scope**: Nhiều chi nhánh pickleball nhỏ tại Hà Nội
 
 **Tech Stack**: React + Node.js + MySQL
 
@@ -14,14 +14,14 @@
 
 ## Mục Tiêu Dự Án
 
-Xây dựng hệ thống đặt sân pickleball trực tuyến phục vụ thể thao cho một cơ sở tại Hà Nội. Hệ thống cho phép người dùng xem lịch trống, đặt sân, thanh toán, hủy lịch và xem lịch sử đặt sân. Owner/Staff/Admin quản lý lịch đặt sân, trạng thái sân, sản phẩm/dịch vụ thuê kèm, thanh toán và báo cáo cơ bản.
+Xây dựng hệ thống đặt sân pickleball trực tuyến phục vụ nhiều chi nhánh nhỏ trong Hà Nội. Hệ thống cho phép người dùng chọn chi nhánh, xem lịch trống theo sân/khung giờ, đặt sân, thanh toán, hủy lịch và xem lịch sử đặt sân. Owner/Staff/Admin quản lý chi nhánh, lịch đặt sân, trạng thái sân, sản phẩm/dịch vụ thuê kèm, thanh toán và báo cáo cơ bản theo từng chi nhánh hoặc toàn hệ thống.
 
 ### Quy trình đặt sân
 
 ```
 Khách chưa đăng nhập → Đăng ký / Đăng nhập
          ↓
-Customer xem lịch trống theo ngày/sân/khung giờ
+Customer chọn chi nhánh và xem lịch trống theo ngày/sân/khung giờ
          ↓
 Customer chọn sân + ngày + khung giờ
          ↓
@@ -38,13 +38,13 @@ Staff theo dõi, check-in / check-out
 
 | Có                                              | Không                                        |
 | ----------------------------------------------- | -------------------------------------------- |
-| Một cơ sở pickleball tại Hà Nội                 | Quản lý nhiều khu vực / nhiều chi nhánh      |
-| Nhiều sân trong cùng một cơ sở                  | Module giải đấu                              |
+| Nhiều chi nhánh nhỏ trong Hà Nội                | Quản lý nhiều tỉnh/thành phố                 |
+| Mỗi chi nhánh có nhiều sân con                  | Module giải đấu                              |
 | Xem lịch trống theo ngày / giờ                  | Tích hợp ERP / CRM                           |
 | Đặt sân online và giữ slot tạm thời (10 phút)   | Lưu thông tin thẻ thanh toán                 |
 | Thanh toán và ghi nhận giao dịch                | Quản lý hợp đồng HLV chuyên sâu             |
 | Hủy lịch và hoàn tiền theo chính sách           | Multi-tenant                                 |
-| Owner/Staff/Admin quản lý booking, sân, addon, payment, report | Không có module ranking thi đấu |
+| Owner/Staff/Admin quản lý chi nhánh, booking, sân, addon, payment, report | Không có module ranking thi đấu |
 
 ---
 
@@ -78,11 +78,11 @@ Staff theo dõi, check-in / check-out
 | ID       | Tên                        | Mô tả                                                              |
 | -------- | -------------------------- | ------------------------------------------------------------------ |
 | US-PB-01 | Đăng ký / Đăng nhập        | Khách chưa đăng nhập tạo tài khoản Customer bằng email Gmail       |
-| US-PB-02 | Xem lịch sân               | Customer xem lịch trống theo ngày, sân, khung giờ                  |
+| US-PB-02 | Xem lịch sân               | Customer xem lịch trống theo chi nhánh, ngày, sân, khung giờ       |
 | US-PB-03 | Đặt sân online             | Customer chọn sân và giữ slot trong 10 phút                        |
 | US-PB-04 | Thanh toán                 | Hệ thống ghi nhận payment và xác nhận booking                      |
 | US-PB-05 | Hủy lịch / Hoàn tiền       | Customer hủy lịch theo chính sách, hoàn tiền tương ứng             |
-| US-PB-06 | Staff quản lý lịch         | Staff xem danh sách booking, check-in / check-out                  |
+| US-PB-06 | Staff quản lý lịch         | Staff xem booking theo chi nhánh phụ trách, check-in / check-out   |
 | US-PB-07 | Quản lý addon              | Owner/Staff/Admin quản lý vợt, bóng, nước uống và dịch vụ kèm     |
 | US-PB-08 | Báo cáo cơ bản             | Owner/Admin xem doanh thu, tỷ lệ lấp đầy, booking theo ngày        |
 
@@ -90,7 +90,7 @@ Staff theo dõi, check-in / check-out
 
 | ID       | Tên                              | Mô tả                                                    |
 | -------- | -------------------------------- | -------------------------------------------------------- |
-| US-PB-10 | Quản lý giá theo khung giờ       | Cấu hình giá thường / cao điểm / cuối tuần               |
+| US-PB-10 | Quản lý giá theo khung giờ       | Cấu hình giá theo toàn hệ thống / chi nhánh / sân        |
 | US-PB-11 | Feedback & Đánh giá              | Customer gửi đánh giá sau buổi chơi, Owner/Staff xem     |
 | US-PB-12 | Thông báo email                  | Gửi email xác nhận đặt sân, nhắc lịch, xác nhận hủy     |
 | US-PB-13 | Lịch sử giao dịch Customer       | Customer xem lại các lần đặt sân, trạng thái, hóa đơn   |
@@ -132,20 +132,21 @@ Staff theo dõi, check-in / check-out
 
 ### US-PB-02: Xem Lịch Sân (P1)
 
-**Mô tả**: Customer xem lịch trống theo ngày, sân và khung giờ để chọn slot phù hợp.
+**Mô tả**: Customer chọn chi nhánh và xem lịch trống theo ngày, sân và khung giờ để chọn slot phù hợp.
 
 **Quy tắc nghiệp vụ**:
-- Giờ mở cửa mặc định: 05:00 – 22:00.
+- Giờ mở cửa mặc định toàn hệ thống: 05:00 – 22:00; chi nhánh có thể có giờ mở/đóng riêng.
 - Khung giờ cao điểm mặc định: 17:00 – 21:00.
 - Không hiển thị slot trong quá khứ.
+- Lịch sân phải luôn gắn với một chi nhánh cụ thể.
 
 **Acceptance Scenarios**:
 
-1. **Given** Customer truy cập trang đặt sân, **When** chọn ngày hôm nay, **Then** hiển thị toàn bộ sân và trạng thái từng khung giờ (Trống / Đã đặt / Đang giữ / Bảo trì).
+1. **Given** Customer truy cập trang đặt sân, **When** chọn chi nhánh và ngày hôm nay, **Then** hiển thị toàn bộ sân của chi nhánh đó và trạng thái từng khung giờ (Trống / Đã đặt / Đang giữ / Bảo trì).
 
 2. **Given** xem lịch sân, **When** lọc theo khung giờ cao điểm 17h–21h, **Then** chỉ hiển thị các slot trong khung giờ đó kèm giá cao điểm.
 
-3. **Given** tất cả sân đã kín lịch ngày đã chọn, **When** Customer xem, **Then** hệ thống hiển thị "Không còn sân trống ngày này".
+3. **Given** tất cả sân của chi nhánh đã kín lịch ngày đã chọn, **When** Customer xem, **Then** hệ thống hiển thị "Không còn sân trống tại chi nhánh này trong ngày đã chọn".
 
 4. **Given** Customer chọn ngày trong quá khứ, **When** xem lịch, **Then** hệ thống không cho đặt, các slot hiển thị ở chế độ chỉ xem.
 
@@ -153,18 +154,19 @@ Staff theo dõi, check-in / check-out
 
 ### US-PB-03: Đặt Sân Online (P1)
 
-**Mô tả**: Customer chọn sân, ngày và khung giờ; hệ thống giữ slot tạm thời 10 phút trong khi Customer hoàn tất thanh toán.
+**Mô tả**: Customer chọn chi nhánh, sân, ngày và khung giờ; hệ thống giữ slot tạm thời 10 phút trong khi Customer hoàn tất thanh toán.
 
 **Quy tắc nghiệp vụ**:
 - Slot hold mặc định: 10 phút.
 - Một booking chiếm sân khi trạng thái là `pending`, `confirmed`, `checked_in`.
 - Không cho đặt trùng cùng sân, cùng ngày, giao nhau về thời gian.
 - Không cho đặt sân trong quá khứ.
+- Booking phải lưu `branch_id` đúng với chi nhánh của sân được đặt.
 - Backend tính tiền; frontend không được gửi tổng tiền để tin trực tiếp.
 
 **Acceptance Scenarios**:
 
-1. **Given** Customer chọn Sân 01 khung 9h–11h ngày mai, **When** xác nhận chọn, **Then** hệ thống tạo slot hold 10 phút, hiển thị thông tin đặt sân và đồng hồ đếm ngược.
+1. **Given** Customer chọn chi nhánh Tây Hồ, Sân A1 khung 9h–11h ngày mai, **When** xác nhận chọn, **Then** hệ thống tạo slot hold 10 phút, hiển thị thông tin chi nhánh, sân, ngày giờ và đồng hồ đếm ngược.
 
 2. **Given** hold 10 phút hết hạn mà Customer chưa thanh toán, **When** hết thời gian, **Then** hệ thống tự động giải phóng slot, thông báo "Phiên đặt sân đã hết hạn, vui lòng chọn lại".
 
@@ -212,17 +214,17 @@ Staff theo dõi, check-in / check-out
 
 ### US-PB-06: Staff Quản lý Lịch (P1)
 
-**Mô tả**: Staff xem danh sách booking trong ngày, thực hiện check-in khi khách đến và check-out khi kết thúc buổi chơi.
+**Mô tả**: Staff xem danh sách booking trong ngày tại chi nhánh được phân công, thực hiện check-in khi khách đến và check-out khi kết thúc buổi chơi.
 
 **Acceptance Scenarios**:
 
-1. **Given** đăng nhập là Staff, **When** mở dashboard, **Then** hiển thị danh sách booking hôm nay theo từng sân: mã booking, tên khách, khung giờ, trạng thái.
+1. **Given** đăng nhập là Staff, **When** mở dashboard, **Then** hiển thị danh sách booking hôm nay theo chi nhánh được phân công và từng sân: mã booking, tên khách, khung giờ, trạng thái.
 
 2. **Given** Customer đến sân, **When** Staff check-in bằng mã booking, **Then** trạng thái chuyển `checked_in`, ghi nhận giờ vào thực tế.
 
 3. **Given** kết thúc buổi chơi, **When** Staff check-out, **Then** trạng thái chuyển `completed`, ghi nhận giờ ra, tính thêm giờ phát sinh nếu có.
 
-4. **Given** Staff muốn xem lịch sân tổng quan, **When** mở trang quản lý sân, **Then** hiển thị tất cả sân theo khung giờ trong ngày với màu trạng thái: xanh = Trống, đỏ = Đã đặt, vàng = Đang giữ (hold).
+4. **Given** Staff muốn xem lịch sân tổng quan, **When** mở trang quản lý sân, **Then** hiển thị tất cả sân trong chi nhánh theo khung giờ trong ngày với màu trạng thái: xanh = Trống, đỏ = Đã đặt, vàng = Đang giữ (hold).
 
 ---
 
@@ -244,29 +246,29 @@ Staff theo dõi, check-in / check-out
 
 ### US-PB-08: Báo Cáo Cơ Bản (P1)
 
-**Mô tả**: Owner và Admin xem báo cáo doanh thu, số lượng booking và tỷ lệ lấp đầy sân theo ngày.
+**Mô tả**: Owner và Admin xem báo cáo doanh thu, số lượng booking và tỷ lệ lấp đầy sân theo ngày, theo chi nhánh hoặc toàn hệ thống tùy quyền.
 
 **Acceptance Scenarios**:
 
-1. **Given** đăng nhập là Owner, **When** mở trang báo cáo và chọn ngày hôm nay, **Then** hiển thị: tổng booking, tổng doanh thu, số slot trống còn lại, tỷ lệ lấp đầy (%).
+1. **Given** đăng nhập là Owner, **When** mở trang báo cáo và chọn chi nhánh cùng ngày hôm nay, **Then** hiển thị: tổng booking, tổng doanh thu, số slot trống còn lại, tỷ lệ lấp đầy (%).
 
-2. **Given** Owner chọn khoảng thời gian tháng 5, **When** chạy báo cáo, **Then** hiển thị doanh thu theo từng ngày, tổng tháng, số booking theo trạng thái (confirmed / cancelled / no-show).
+2. **Given** Owner chọn khoảng thời gian tháng 5 và phạm vi chi nhánh, **When** chạy báo cáo, **Then** hiển thị doanh thu theo từng ngày, tổng tháng, số booking theo trạng thái (confirmed / cancelled / no-show).
 
-3. **Given** Owner xuất báo cáo, **When** chọn xuất Excel/PDF, **Then** file tải về có: ngày, sân, số booking, doanh thu, tỷ lệ lấp đầy, chi tiết từng booking.
+3. **Given** Owner xuất báo cáo, **When** chọn xuất Excel/PDF, **Then** file tải về có: chi nhánh, ngày, sân, số booking, doanh thu, tỷ lệ lấp đầy, chi tiết từng booking.
 
 ---
 
 ### US-PB-10: Quản lý Giá theo Khung Giờ (P2)
 
-**Mô tả**: Admin/Owner cấu hình bảng giá linh hoạt theo khung giờ thường, cao điểm và cuối tuần thông qua `price_rules`.
+**Mô tả**: Admin/Owner cấu hình bảng giá linh hoạt theo toàn hệ thống, chi nhánh hoặc sân; theo khung giờ thường, cao điểm và cuối tuần thông qua `price_rules`.
 
 **Acceptance Scenarios**:
 
-1. **Given** Admin cấu hình giờ cao điểm 17h–21h với giá 150.000đ/giờ, **When** Customer đặt sân khung 18h–20h, **Then** backend tính giá theo `price_rules` cao điểm = 300.000đ.
+1. **Given** Admin cấu hình giờ cao điểm 17h–21h cho chi nhánh Tây Hồ với giá 150.000đ/giờ, **When** Customer đặt sân tại chi nhánh đó khung 18h–20h, **Then** backend tính giá theo `price_rules` cao điểm = 300.000đ.
 
 2. **Given** Customer đặt sân khung 9h–11h (giờ thường 80.000đ/giờ), **When** thanh toán, **Then** tổng tiền = 160.000đ, hiển thị đúng giá trước khi xác nhận.
 
-3. **Given** Admin thay đổi bảng giá, **When** lưu, **Then** các booking đã `confirmed` không bị ảnh hưởng; chỉ áp dụng cho booking mới.
+3. **Given** Admin thay đổi bảng giá của một chi nhánh, **When** lưu, **Then** các booking đã `confirmed` không bị ảnh hưởng; chỉ áp dụng cho booking mới thuộc phạm vi giá đó.
 
 ---
 
@@ -330,7 +332,7 @@ Staff theo dõi, check-in / check-out
 ### Nhóm A: Nghiệp vụ Cốt lõi
 
 - **FR-A01**: CHO PHÉP Guest đăng ký tài khoản Customer bằng email `@gmail.com`.
-- **FR-A02**: CHO PHÉP Customer xem lịch sân real-time theo ngày, sân và khung giờ.
+- **FR-A02**: CHO PHÉP Customer xem lịch sân real-time theo chi nhánh, ngày, sân và khung giờ.
 - **FR-A03**: KHÔNG CHO PHÉP đặt sân trùng slot đang hold hoặc đã confirmed.
 - **FR-A04**: KHÔNG CHO PHÉP đặt sân trong quá khứ.
 - **FR-A05**: CHO PHÉP giữ slot tạm thời tối đa 10 phút khi Customer đang thanh toán.
@@ -346,9 +348,10 @@ Staff theo dõi, check-in / check-out
 
 ### Nhóm C: Quản lý Sân & Cơ sở
 
-- **FR-C01**: CHO PHÉP Admin/Owner cấu hình sân: mã, tên, trạng thái, giờ mở cửa (mặc định 05:00–22:00).
-- **FR-C02**: CHO PHÉP cấu hình `price_rules`: giá theo khung giờ thường, cao điểm (mặc định 17:00–21:00), cuối tuần.
-- **FR-C03**: CHO PHÉP Staff/Admin đóng sân tạm thời kèm lý do; tự động hủy booking bị ảnh hưởng.
+- **FR-C01**: CHO PHÉP Admin/Owner cấu hình chi nhánh: mã, tên, quận/huyện, địa chỉ, trạng thái, giờ mở cửa (mặc định 05:00–22:00).
+- **FR-C02**: CHO PHÉP Admin/Owner cấu hình sân thuộc chi nhánh: mã, tên, trạng thái, loại sân, mặt sân, địa chỉ và giá cơ bản.
+- **FR-C03**: CHO PHÉP cấu hình `price_rules`: giá theo toàn hệ thống, chi nhánh hoặc sân; theo khung giờ thường, cao điểm (mặc định 17:00–21:00), cuối tuần.
+- **FR-C04**: CHO PHÉP Staff/Admin đóng sân tạm thời kèm lý do; tự động hủy booking bị ảnh hưởng.
 
 ### Nhóm D: Addon & Dịch vụ Kèm
 
@@ -373,11 +376,12 @@ Staff theo dõi, check-in / check-out
 
 ## Key Entities
 
-- **`settings`**: Thông tin cơ sở Hà Nội, giờ mở cửa, cấu hình slot hold.
+- **`settings`**: Cấu hình chung toàn hệ thống, giờ mở cửa mặc định, cấu hình slot hold.
+- **`branches`**: Danh sách chi nhánh nhỏ trong Hà Nội.
 - **`users`**: Tài khoản Admin / Owner / Staff / Customer.
 - **`roles`**: Danh sách vai trò.
-- **`courts`**: Danh sách sân trong cơ sở.
-- **`price_rules`**: Bảng giá theo khung giờ (thường / cao điểm / cuối tuần).
+- **`courts`**: Danh sách sân thuộc từng chi nhánh.
+- **`price_rules`**: Bảng giá theo toàn hệ thống / chi nhánh / sân và khung giờ (thường / cao điểm / cuối tuần).
 - **`slot_holds`**: Giữ slot tạm thời 10 phút.
 - **`bookings`**: Đơn đặt sân.
 - **`booking_slots`**: Các khung giờ trong booking.
@@ -412,7 +416,7 @@ frontend/
 mysql-workbench-schema.sql
 database.md
 IMPLEMENTATION.md
-AGENTS.md
+AGENT.md
 CLAUDE.md
 ```
 
@@ -514,7 +518,8 @@ VITE_GOOGLE_CLIENT_ID=your-google-web-client-id
 
 ### Phạm vi
 
-- Chỉ một cơ sở duy nhất tại Hà Nội; không hỗ trợ multi-tenant hay nhiều chi nhánh.
+- Hệ thống quản lý nhiều chi nhánh nhỏ trong Hà Nội; không hỗ trợ multi-tenant hoặc nhiều tỉnh/thành phố.
+- Mỗi sân bắt buộc thuộc một chi nhánh; booking/slot hold phải lưu đúng `branch_id` của sân.
 - Booking được xác nhận sau khi Staff/hệ thống ghi nhận thanh toán thành công.
 - Email đăng ký bắt buộc đuôi `@gmail.com`.
 - Password lưu plain text theo yêu cầu hiện tại (cần nâng cấp hash trước khi production).
@@ -530,7 +535,7 @@ VITE_GOOGLE_CLIENT_ID=your-google-web-client-id
 | Vai trò (Role) | Phạm vi & Quyền hạn                                                                                                          |
 | :------------- | :--------------------------------------------------------------------------------------------------------------------------- |
 | **Admin**      | Toàn quyền cấu hình hệ thống, quản lý tài khoản người dùng, phân quyền, xem audit log, sao lưu và khôi phục dữ liệu.        |
-| **Owner**      | Xem doanh thu và báo cáo, cấu hình sân và bảng giá, quản lý addon, quản lý nhân sự, xem và xử lý feedback từ Customer.                       |
-| **Staff**      | Xem và quản lý booking trong ngày, check-in/check-out khách hàng, ghi nhận thanh toán tại quầy, quản lý addon tại cơ sở.    |
+| **Owner**      | Xem doanh thu và báo cáo theo chi nhánh/toàn hệ thống, cấu hình chi nhánh, sân và bảng giá, quản lý addon, quản lý nhân sự, xem và xử lý feedback từ Customer.                       |
+| **Staff**      | Xem và quản lý booking trong ngày tại chi nhánh được phân công, check-in/check-out khách hàng, ghi nhận thanh toán tại quầy, quản lý addon tại chi nhánh.    |
 | **Customer**   | Xem lịch sân, tự đặt sân online, thanh toán, hủy lịch, thêm addon, gửi feedback, xem lịch sử đặt sân của bản thân.          |
 | **Guest**      | Xem HomePage, đăng kí tài khoản           |
