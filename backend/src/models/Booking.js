@@ -32,6 +32,10 @@ function createBookingCode() {
   return `BK-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
 
+function createTransactionCode() {
+  return `PAY-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
+
 function createAppError(message, status = 400) {
   const error = new Error(message);
   error.status = status;
@@ -378,6 +382,7 @@ async function createBookingFromHold({ customerId, holdCode }) {
   let bookingId = null;
   let totalAmount = 0;
   let priceSlots = [];
+  let transactionCode = '';
 
   await transaction(async (connection) => {
     await connection.execute(
@@ -452,7 +457,7 @@ async function createBookingFromHold({ customerId, holdCode }) {
          sub_total, discount_amount, total_amount, payment_status, booking_status, source, expires_at)
        VALUES
         (:bookingCode, :customerId, :branchId, :courtId, :bookingDate,
-         :subTotal, 0, :totalAmount, 'unpaid', 'pending', 'online', :expiresAt)`,
+         :subTotal, 0, :totalAmount, 'paid', 'confirmed', 'online', NULL)`,
       {
         bookingCode,
         customerId,
@@ -461,7 +466,6 @@ async function createBookingFromHold({ customerId, holdCode }) {
         bookingDate: hold.booking_date,
         subTotal: totalAmount,
         totalAmount,
-        expiresAt: hold.expires_at,
       },
     );
     bookingId = bookingResult.insertId;
@@ -483,11 +487,40 @@ async function createBookingFromHold({ customerId, holdCode }) {
         },
       );
     }
+
+    transactionCode = createTransactionCode();
+    await connection.execute(
+      `INSERT INTO payment_transactions
+        (transaction_code, booking_id, customer_id, amount, payment_method,
+         gateway_reference, status, paid_at, note, raw_response)
+       VALUES
+        (:transactionCode, :bookingId, :customerId, :amount, 'bank_transfer',
+         :gatewayReference, 'success', NOW(), :note, :rawResponse)`,
+      {
+        transactionCode,
+        bookingId,
+        customerId,
+        amount: totalAmount,
+        gatewayReference: hold.hold_code,
+        note: 'Online bank transfer confirmed from slot hold',
+        rawResponse: JSON.stringify({
+          source: 'demo_bank_transfer',
+          holdCode: hold.hold_code,
+          confirmedAt: new Date().toISOString(),
+        }),
+      },
+    );
   });
 
   const booking = await findBookingById(bookingId);
   return {
     booking,
+    payment: {
+      transactionCode,
+      amount: totalAmount,
+      method: 'bank_transfer',
+      status: 'success',
+    },
     slots: priceSlots,
     totalAmount,
   };

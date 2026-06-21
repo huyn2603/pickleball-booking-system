@@ -72,4 +72,4 @@ npm run dev
 - Seed data trong SQL dung email `@gmail.com`.
 - API dang ky chi chap nhan email co duoi `@gmail.com`.
 - User seed dang nhap bang mat khau plain text `123456`.
-- Booking da co API giu slot tam thoi `POST /api/bookings/hold`, tao booking pending tu hold `POST /api/bookings/from-hold`, va Customer xem lich dat cua minh qua `GET /api/bookings/my`; payment/refund chua duoc implement API day du.
+- Booking da co API giu slot tam thoi `POST /api/bookings/hold`, ghi nhan thanh toan online va tao booking confirmed/paid tu hold `POST /api/bookings/from-hold`, va Customer xem lich dat cua minh qua `GET /api/bookings/my`; refund chua duoc implement API day du.

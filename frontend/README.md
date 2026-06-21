@@ -31,7 +31,7 @@ Backend hien co cac endpoint auth:
 - `POST /api/auth/password`
 - `GET /api/auth/me`
 - `POST /api/bookings/hold`
-- `POST /api/bookings/from-hold`
+- `POST /api/bookings/from-hold` (ghi nhan thanh toan online va confirm booking)
 - `GET /api/bookings/my`
 
 Bien moi truong de bat nut dang nhap Gmail:

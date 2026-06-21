@@ -7,6 +7,11 @@ import './App.css'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+const PAYMENT_BANK = {
+  bankId: '970422',
+  accountNo: '0123456789',
+  accountName: 'PICKLEBALL BOOKING',
+}
 
 const roleLabels = {
   Admin: 'Admin',
@@ -30,6 +35,15 @@ function formatMoney(value) {
 
 function formatFullMoney(value) {
   return `${Number(value || 0).toLocaleString('vi-VN')}đ`
+}
+
+function buildQrUrl(amount, content) {
+  const params = new URLSearchParams({
+    amount: String(Number(amount || 0)),
+    addInfo: content,
+    accountName: PAYMENT_BANK.accountName,
+  })
+  return `https://img.vietqr.io/image/${PAYMENT_BANK.bankId}-${PAYMENT_BANK.accountNo}-compact2.png?${params.toString()}`
 }
 
 function formatDateDisplay(value) {
@@ -2601,6 +2615,9 @@ function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCou
   const slots = availability?.slots || []
   const endTime = selectedTime ? addHoursToTime(selectedTime, durationHours) : ''
   const totalAmount = selectedTime ? calculateBookingTotal(slots, selectedTime, durationHours) : 0
+  const paymentAmount = holdResult?.totalAmount || totalAmount
+  const paymentContent = holdResult?.hold?.holdCode || ''
+  const paymentQrUrl = holdResult ? buildQrUrl(paymentAmount, paymentContent) : ''
   const canConfirm = selectedTime && contact.fullName.trim() && contact.phone.trim() && totalAmount > 0
   const selectableSlotCount = slots.filter((slot) => slot.status === 'available' && hasAvailableDuration(slots, slot.startTime, durationHours)).length
   const submitHint = selectedTime
@@ -2724,10 +2741,10 @@ function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCou
 
       if (holdResult) {
         setBookingResult(data.data || data)
-        onNotice(data.message || 'Đã tạo yêu cầu đặt sân. Nhân viên sẽ xác nhận và hướng dẫn thanh toán.')
+        onNotice(data.message || 'Thanh toán thành công. Booking đã được xác nhận.')
       } else {
         setHoldResult(data.data || data)
-        onNotice(data.message || 'Đã giữ lịch tạm thời. Vui lòng hoàn tất đặt sân trong 10 phút.')
+        onNotice(data.message || 'Đã giữ lịch tạm thời. Vui lòng quét QR và thanh toán trong 10 phút.')
       }
     } catch (error) {
       setBookingError(error.message)
@@ -2833,9 +2850,29 @@ function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCou
             </div>
           </article>
 
+          {holdResult && !bookingResult && (
+            <article className="booking-step-card payment-qr-card">
+              <div className="booking-step-title">
+                <span>3</span>
+                <h2>Thanh toán chuyển khoản</h2>
+              </div>
+              <div className="payment-qr-layout">
+                <img src={paymentQrUrl} alt="QR chuyển khoản đặt sân" />
+                <dl>
+                  <div><dt>Ngân hàng</dt><dd>MB Bank</dd></div>
+                  <div><dt>Số tài khoản</dt><dd>{PAYMENT_BANK.accountNo}</dd></div>
+                  <div><dt>Chủ tài khoản</dt><dd>{PAYMENT_BANK.accountName}</dd></div>
+                  <div><dt>Số tiền</dt><dd>{formatFullMoney(paymentAmount)}</dd></div>
+                  <div><dt>Nội dung</dt><dd>{paymentContent}</dd></div>
+                </dl>
+              </div>
+              <p className="muted-note">Sau khi chuyển khoản thành công, bấm xác nhận thanh toán để hệ thống ghi nhận giao dịch và xác nhận booking.</p>
+            </article>
+          )}
+
           <article className="booking-step-card">
             <div className="booking-step-title">
-              <span>3</span>
+              <span>{holdResult ? '4' : '3'}</span>
               <h2>Thông tin liên hệ</h2>
             </div>
             <div className="booking-contact-grid">
@@ -2876,17 +2913,17 @@ function BookingPage({ court, user, token, notice, onNotice, onBack, onChangeCou
           </div>
           <button type="submit" className="primary-button wide" disabled={bookingSubmitting || Boolean(bookingResult)}>
             {bookingSubmitting
-              ? holdResult ? 'Đang tạo booking...' : 'Đang giữ lịch...'
-              : bookingResult ? 'Đã gửi yêu cầu'
-                : holdResult ? 'Hoàn tất đặt sân'
-                  : 'Xác nhận đặt sân'}
+              ? holdResult ? 'Đang xác nhận thanh toán...' : 'Đang giữ lịch...'
+              : bookingResult ? 'Đã thanh toán'
+                : holdResult ? 'Tôi đã chuyển khoản'
+                  : 'Giữ lịch và hiện QR'}
           </button>
           {bookingResult && (
             <button type="button" className="secondary-button wide" onClick={onViewMyBookings}>
               Xem lịch đặt của tôi
             </button>
           )}
-          <p>{bookingResult ? 'Yêu cầu đặt sân đã được gửi tới nhân viên.' : holdResult ? 'Lịch của bạn đang được giữ tạm thời trong 10 phút.' : submitHint}</p>
+          <p>{bookingResult ? 'Thanh toán thành công, booking đã được xác nhận.' : holdResult ? 'Lịch đang được giữ trong 10 phút để bạn hoàn tất chuyển khoản.' : submitHint}</p>
         </aside>
       </form>
     </section>

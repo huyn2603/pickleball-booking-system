@@ -96,7 +96,8 @@ async function createBookingFromHold(req, res) {
       success: true,
       data: result,
       booking: result.booking,
-      message: 'Da tao yeu cau dat san. Nhan vien se xac nhan va huong dan thanh toan.',
+      payment: result.payment,
+      message: 'Thanh toan thanh cong. Booking da duoc xac nhan.',
     });
   } catch (error) {
     const duplicateMessages = [

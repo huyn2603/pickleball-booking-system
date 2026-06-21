@@ -335,7 +335,7 @@ Staff theo dõi, check-in / check-out
 - **FR-A04**: KHÔNG CHO PHÉP đặt sân trong quá khứ.
 - **FR-A05**: CHO PHÉP giữ slot tạm thời tối đa 10 phút khi Customer đang thanh toán.
 - **FR-A06**: CHO PHÉP Customer hủy sân; tự động áp chính sách phí hủy và hoàn tiền tương ứng.
-- **FR-A07**: CHO PHÉP Staff check-in/check-out và cập nhật trạng thái booking: `pending` → `confirmed` → `checked_in` → `completed` / `cancelled`.
+- **FR-A07**: CHO PHÉP Staff check-in/check-out và cập nhật trạng thái booking sau thanh toán: `confirmed` → `checked_in` → `completed` / `cancelled`.
 
 ### Nhóm B: Thanh Toán & Tài Chính
 
@@ -489,7 +489,7 @@ VITE_GOOGLE_CLIENT_ID=your-google-web-client-id
 | POST   | `/api/auth/password`      | Đổi mật khẩu                 |
 | GET    | `/api/auth/me`            | Lấy thông tin người dùng hiện tại |
 | POST   | `/api/bookings/hold`      | Giữ lịch đặt sân tạm thời 10 phút |
-| POST   | `/api/bookings/from-hold` | Tạo booking pending từ lịch đang giữ |
+| POST   | `/api/bookings/from-hold` | Ghi nhận thanh toán online và tạo booking confirmed từ lịch đang giữ |
 | GET    | `/api/bookings/my`        | Customer xem sân đang đặt và lịch sử đặt sân của mình |
 
 ---
