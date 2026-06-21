@@ -13,6 +13,14 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 button,
 input,
 select {
@@ -523,6 +531,7 @@ select:focus {
   margin: 0 auto;
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 .owner-workspace {
@@ -594,6 +603,7 @@ select:focus {
 
 .staff-panel {
   padding: 22px;
+  min-width: 0;
 }
 
 .staff-panel .panel-heading {
@@ -601,6 +611,7 @@ select:focus {
 }
 
 .staff-table-wrap {
+  max-width: 100%;
   overflow-x: auto;
 }
 
@@ -786,7 +797,7 @@ select:focus {
 .auth-section,
 .dashboard-section {
   min-height: calc(100svh - 100px);
-  padding: 64px 7vw;
+  padding: clamp(28px, 4vw, 56px) clamp(16px, 4vw, 56px);
   background: var(--soft-cloud);
 }
 
@@ -955,6 +966,7 @@ select:focus {
 .dashboard-section {
   display: grid;
   gap: 24px;
+  overflow-x: hidden;
 }
 
 .courts-section {
@@ -1555,6 +1567,7 @@ select:focus {
   align-items: end;
   justify-content: space-between;
   gap: 24px;
+  min-width: 0;
 }
 
 .profile-card,
@@ -1562,11 +1575,12 @@ select:focus {
   width: min(1220px, 100%);
   margin: 0 auto;
   padding: 24px;
+  min-width: 0;
 }
 
 .identity-list {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 12px;
   margin: 0;
 }
@@ -1621,6 +1635,161 @@ select:focus {
   gap: 0;
 }
 
+.staff-court-list {
+  display: grid;
+  gap: 0;
+  margin-top: 8px;
+}
+
+.staff-date-panel {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.staff-date-panel label {
+  width: min(320px, 100%);
+}
+
+.schedule-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0 0 16px;
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.schedule-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.schedule-legend i {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.schedule-legend .available {
+  background: #dcfbe6;
+}
+
+.schedule-legend .booked {
+  background: #ffe5e5;
+}
+
+.schedule-legend .hold {
+  background: #fff4cc;
+}
+
+.schedule-board {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  display: grid;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  overscroll-behavior-x: contain;
+}
+
+.schedule-row {
+  display: grid;
+  grid-template-columns: 160px repeat(17, minmax(86px, 1fr));
+  min-width: 1622px;
+}
+
+.schedule-row + .schedule-row {
+  border-top: 1px solid var(--hairline);
+}
+
+.schedule-header {
+  background: #f6f8fa;
+  color: var(--mute);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.schedule-court-cell,
+.schedule-time-cell,
+.schedule-slot {
+  min-height: 58px;
+  border-right: 1px solid var(--hairline);
+  padding: 8px;
+}
+
+.schedule-row > :last-child {
+  border-right: 0;
+}
+
+.schedule-court-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  background: var(--canvas);
+  font-weight: 900;
+}
+
+.schedule-header .schedule-court-cell {
+  background: #f6f8fa;
+}
+
+.schedule-court-cell span {
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.schedule-time-cell {
+  display: grid;
+  place-items: center;
+}
+
+.schedule-slot {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  color: #152016;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.schedule-slot.available {
+  background: #dcfbe6;
+  color: var(--success);
+}
+
+.schedule-slot.booked {
+  background: #ffe5e5;
+  color: var(--danger);
+}
+
+.schedule-slot.hold {
+  background: #fff4cc;
+  color: #7a5200;
+}
+
+.schedule-slot.maintenance {
+  background: #eef1f4;
+  color: #687386;
+}
+
+.schedule-slot small {
+  overflow: hidden;
+  color: inherit;
+  opacity: 0.78;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .inline-search {
   margin: 16px 0 4px;
 }
@@ -1654,6 +1823,33 @@ select:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.staff-actions,
+.counter-payment-box {
+  display: grid;
+  gap: 8px;
+}
+
+.counter-payment-box {
+  min-width: 220px;
+}
+
+.counter-payment-box select,
+.counter-payment-box input {
+  min-height: 36px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.counter-payment-box .small {
+  width: 100%;
+}
+
+.action-hint {
+  color: var(--mute);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .feature-panel ul {

@@ -100,6 +100,7 @@ function App() {
   const [courtPage, setCourtPage] = useState(1)
   const [selectedCourtId, setSelectedCourtId] = useState(null)
   const [ownerView, setOwnerView] = useState('courts')
+  const [staffView, setStaffView] = useState('operations')
   const [editingCourtId, setEditingCourtId] = useState(null)
   const [mode, setMode] = useState('login')
   const [editingProfile, setEditingProfile] = useState(false)
@@ -113,7 +114,7 @@ function App() {
   const [forgotPasswordStep, setForgotPasswordStep] = useState('request')
   const [resetToken, setResetToken] = useState('')
   const [accountsLoading, setAccountsLoading] = useState(false)
-  const [staffDashboard, setStaffDashboard] = useState({ date: getTodayString(), bookings: [], addons: [] })
+  const [staffDashboard, setStaffDashboard] = useState({ date: getTodayString(), bookings: [], addons: [], schedule: null })
   const [staffLoading, setStaffLoading] = useState(false)
   const [form, setForm] = useState({
     fullName: '',
@@ -310,6 +311,25 @@ function App() {
 
     setPage('dashboard')
     setEditingProfile(false)
+  }
+
+  function showStaffFeature(nextView) {
+    setAvatarMenuOpen(false)
+    setSportMenuOpen(false)
+    resetNotice()
+
+    if (!session) {
+      showAuth('login')
+      return
+    }
+
+    setStaffView(nextView)
+    setPage('dashboard')
+    setEditingProfile(false)
+
+    if (nextView === 'courts') {
+      fetchCourts()
+    }
   }
 
   function showCourts() {
@@ -556,14 +576,14 @@ function App() {
     }
   }
 
-  async function fetchStaffDashboard() {
+  async function fetchStaffDashboard(date = staffDashboard.date) {
     if (!session?.token) {
       return
     }
 
     setStaffLoading(true)
     try {
-      const response = await fetch(`${API_URL}/staff/dashboard?date=${staffDashboard.date}`, {
+      const response = await fetch(`${API_URL}/staff/dashboard?date=${date}`, {
         headers: { Authorization: `Bearer ${session.token}` },
       })
       const data = await response.json()
@@ -576,6 +596,7 @@ function App() {
         date: data.date,
         bookings: data.bookings || [],
         addons: data.addons || [],
+        schedule: data.schedule || null,
       })
     } catch (error) {
       setMessage(error.message)
@@ -583,6 +604,12 @@ function App() {
     } finally {
       setStaffLoading(false)
     }
+  }
+
+  function changeStaffDate(event) {
+    const date = event.target.value
+    setStaffDashboard((current) => ({ ...current, date }))
+    fetchStaffDashboard(date)
   }
 
   async function handleStaffBookingAction(booking, action, extra = {}) {
@@ -1091,6 +1118,12 @@ function App() {
               <button type="button" onClick={() => showOwnerFeature('revenue')}>Doanh thu</button>
             </>
           )}
+          {role === 'Staff' && (
+            <>
+              <button type="button" onClick={() => showStaffFeature('operations')}>Vận hành</button>
+              <button type="button" onClick={() => showStaffFeature('courts')}>Quản lý sân</button>
+            </>
+          )}
         </div>
 
         <div className="nav-actions">
@@ -1445,9 +1478,15 @@ function App() {
           )}
           {role === 'Staff' && (
             <StaffToolsPanel
+              view={staffView}
+              onView={setStaffView}
+              courts={courts}
+              courtsLoading={courtsLoading}
               dashboard={staffDashboard}
               loading={staffLoading}
               onRefresh={fetchStaffDashboard}
+              onDateChange={changeStaffDate}
+              onRefreshCourts={fetchCourts}
               onBookingAction={handleStaffBookingAction}
               onAddonStock={handleAddonStock}
             />
@@ -1975,11 +2014,35 @@ function StaffTools() {
   )
 }
 
-function StaffToolsPanel({ dashboard, loading, onRefresh, onBookingAction, onAddonStock }) {
+function StaffToolsPanel({ view, onView, courts, courtsLoading, dashboard, loading, onRefresh, onDateChange, onRefreshCourts, onBookingAction, onAddonStock }) {
   const bookings = dashboard.bookings || []
   const addons = dashboard.addons || []
+  const schedule = dashboard.schedule || { timeSlots: [], courts: [] }
   const totalRevenue = bookings.reduce((sum, booking) => sum + Number(booking.paidAmount || 0), 0)
   const activeBookings = bookings.filter((booking) => ['confirmed', 'checked_in'].includes(booking.bookingStatus)).length
+  const [paymentDrafts, setPaymentDrafts] = useState({})
+
+  function getPaymentDraft(bookingId) {
+    return paymentDrafts[bookingId] || { paymentMethod: 'cash', note: '' }
+  }
+
+  function updatePaymentDraft(bookingId, field, value) {
+    setPaymentDrafts((current) => ({
+      ...current,
+      [bookingId]: {
+        ...(current[bookingId] || { paymentMethod: 'cash', note: '' }),
+        [field]: value,
+      },
+    }))
+  }
+
+  function submitCounterPayment(booking) {
+    const draft = getPaymentDraft(booking.id)
+    onBookingAction(booking, 'payment', {
+      paymentMethod: draft.paymentMethod,
+      note: draft.note.trim() || undefined,
+    })
+  }
 
   function updateStock(addon) {
     const display = addonDisplay[addon.code] || {}
@@ -1999,6 +2062,45 @@ function StaffToolsPanel({ dashboard, loading, onRefresh, onBookingAction, onAdd
 
   return (
     <section className="staff-workspace" aria-label="Bảng vận hành của nhân viên">
+      <div className="owner-tabs staff-tabs" role="tablist" aria-label="Chọn trang quản lý của nhân viên">
+        <button type="button" className={view === 'operations' ? 'active' : ''} onClick={() => onView('operations')}>
+          Vận hành
+        </button>
+        <button
+          type="button"
+          className={view === 'courts' ? 'active' : ''}
+          onClick={() => {
+            onView('courts')
+            onRefreshCourts()
+          }}
+        >
+          Quản lý sân
+        </button>
+      </div>
+
+      <article className="staff-panel staff-date-panel">
+        <label>
+          Ngày vận hành
+          <input type="date" value={dashboard.date || getTodayString()} onChange={onDateChange} />
+        </label>
+        <button type="button" className="secondary-button small" onClick={() => onRefresh(dashboard.date)} disabled={loading}>
+          {loading ? 'Đang tải...' : 'Tải lại'}
+        </button>
+      </article>
+
+      {view === 'courts' && (
+        <StaffCourtPanel
+          courts={courts}
+          courtsLoading={courtsLoading}
+          schedule={schedule}
+          loading={loading}
+          onRefresh={onRefreshCourts}
+          onRefreshSchedule={() => onRefresh(dashboard.date)}
+        />
+      )}
+
+      {view === 'operations' && (
+        <>
       <div className="staff-stat-grid">
         <article>
           <span>Booking hôm nay</span>
@@ -2053,29 +2155,56 @@ function StaffToolsPanel({ dashboard, loading, onRefresh, onBookingAction, onAdd
                   <td>
                     <span>{paymentStatusLabels[booking.paymentStatus] || booking.paymentStatus}</span>
                     <small>{formatFullMoney(booking.totalAmount)}</small>
+                    {Number(booking.paidAmount) > 0 && <small>Da thu: {formatFullMoney(booking.paidAmount)}</small>}
                   </td>
                   <td>
-                    <div className="row-actions">
-                      {booking.paymentStatus !== 'paid' && (
-                        <button
-                          type="button"
-                          className="secondary-button small"
-                          onClick={() => onBookingAction(booking, 'payment', { paymentMethod: 'cash' })}
-                          disabled={loading}
-                        >
-                          Thu tiền
-                        </button>
+                    <div className="staff-actions">
+                      {booking.paymentStatus !== 'paid' && ['pending', 'confirmed', 'checked_in'].includes(booking.bookingStatus) && (
+                        <div className="counter-payment-box">
+                          <select
+                            aria-label="Phuong thuc thanh toan tai quay"
+                            value={getPaymentDraft(booking.id).paymentMethod}
+                            onChange={(event) => updatePaymentDraft(booking.id, 'paymentMethod', event.target.value)}
+                            disabled={loading}
+                          >
+                            <option value="cash">Tien mat</option>
+                            <option value="bank_transfer">Chuyen khoan</option>
+                          </select>
+                          <input
+                            aria-label="Ghi chu thanh toan"
+                            value={getPaymentDraft(booking.id).note}
+                            onChange={(event) => updatePaymentDraft(booking.id, 'note', event.target.value)}
+                            placeholder="Ghi chu tai quay"
+                            disabled={loading}
+                          />
+                          <button
+                            type="button"
+                            className="secondary-button small"
+                            onClick={() => submitCounterPayment(booking)}
+                            disabled={loading}
+                          >
+                            Ghi nhan thanh toan
+                          </button>
+                        </div>
                       )}
-                      {booking.bookingStatus === 'confirmed' && (
-                        <button type="button" className="primary-button small" onClick={() => onBookingAction(booking, 'checkIn')} disabled={loading}>
-                          Check-in
-                        </button>
-                      )}
-                      {booking.bookingStatus === 'checked_in' && (
-                        <button type="button" className="primary-button small" onClick={() => onBookingAction(booking, 'checkOut')} disabled={loading}>
-                          Check-out
-                        </button>
-                      )}
+                      <div className="row-actions">
+                        {booking.bookingStatus === 'confirmed' && booking.paymentStatus === 'paid' && (
+                          <button type="button" className="primary-button small" onClick={() => onBookingAction(booking, 'checkIn')} disabled={loading}>
+                            Check-in
+                          </button>
+                        )}
+                        {booking.bookingStatus === 'confirmed' && booking.paymentStatus !== 'paid' && (
+                          <span className="action-hint">Can thu tien truoc khi check-in</span>
+                        )}
+                        {booking.bookingStatus === 'checked_in' && (
+                          <button type="button" className="primary-button small" onClick={() => onBookingAction(booking, 'checkOut')} disabled={loading}>
+                            Check-out
+                          </button>
+                        )}
+                        {['completed', 'cancelled', 'expired', 'no_show'].includes(booking.bookingStatus) && (
+                          <span className="action-hint">Khong co thao tac</span>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -2117,7 +2246,86 @@ function StaffToolsPanel({ dashboard, loading, onRefresh, onBookingAction, onAdd
           })}
         </div>
       </article>
+        </>
+      )}
     </section>
+  )
+}
+
+function StaffCourtPanel({ courts, courtsLoading, schedule, loading, onRefresh, onRefreshSchedule }) {
+  const timeSlots = schedule?.timeSlots || []
+  const scheduleCourts = schedule?.courts || []
+  const scheduleGridStyle = {
+    gridTemplateColumns: `160px repeat(${Math.max(timeSlots.length, 1)}, minmax(86px, 1fr))`,
+    minWidth: `${160 + Math.max(timeSlots.length, 1) * 86}px`,
+  }
+
+  return (
+    <>
+    <article className="staff-panel">
+      <div className="panel-heading">
+        <h2>Lịch sân tổng quan</h2>
+        <button type="button" className="secondary-button small" onClick={onRefreshSchedule} disabled={loading}>
+          {loading ? 'Đang tải...' : 'Tải lại lịch'}
+        </button>
+      </div>
+      <div className="schedule-legend" aria-label="Chú thích trạng thái sân">
+        <span><i className="available" />Trống</span>
+        <span><i className="booked" />Đã đặt</span>
+        <span><i className="hold" />Đang giữ</span>
+      </div>
+      <div className="schedule-board">
+        <div className="schedule-row schedule-header" style={scheduleGridStyle}>
+          <div className="schedule-court-cell">Sân</div>
+          {timeSlots.map((slot) => (
+            <div className="schedule-time-cell" key={`${slot.startTime}-${slot.endTime}`}>{slot.startTime}</div>
+          ))}
+        </div>
+        {scheduleCourts.length === 0 && <p className="empty-text">Chưa có dữ liệu lịch sân.</p>}
+        {scheduleCourts.map((court) => (
+          <div className="schedule-row" key={court.id} style={scheduleGridStyle}>
+            <div className="schedule-court-cell">
+              <strong>{court.code}</strong>
+              <span>{court.name}</span>
+            </div>
+            {court.slots.map((slot) => (
+              <div
+                className={`schedule-slot ${slot.status}`}
+                key={`${court.id}-${slot.startTime}`}
+                title={`${court.code} ${slot.startTime}-${slot.endTime}: ${slot.label}${slot.bookingCode ? ` - ${slot.bookingCode}` : ''}`}
+              >
+                <span>{slot.label}</span>
+                {slot.bookingCode && <small>{slot.bookingCode}</small>}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </article>
+
+    <article className="staff-panel">
+      <div className="panel-heading">
+        <h2>Quản lý sân</h2>
+        <button type="button" className="secondary-button small" onClick={onRefresh} disabled={courtsLoading}>
+          {courtsLoading ? 'Đang tải...' : 'Tải lại'}
+        </button>
+      </div>
+      {courtsLoading && <p className="empty-text">Đang tải sân từ database...</p>}
+      {!courtsLoading && courts.length === 0 && <p className="empty-text">Database chưa có sân.</p>}
+      <div className="staff-court-list">
+        {courts.map((court) => (
+          <div className="account-row" key={court.id}>
+            <div>
+              <strong>{court.code} - {court.name}</strong>
+              <span>{court.address}</span>
+              <small>{court.type === 'outdoor' ? 'Sân ngoài trời' : 'Sân trong nhà'} - {court.statusLabel || court.status}</small>
+            </div>
+            <span className={`status-pill ${court.status}`}>{court.statusLabel || court.status}</span>
+          </div>
+        ))}
+      </div>
+    </article>
+    </>
   )
 }
 

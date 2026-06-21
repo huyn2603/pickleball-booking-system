@@ -42,12 +42,13 @@ async function dashboard(req, res) {
       return sendError(res, 400, 'Ngay phai co dinh dang YYYY-MM-DD.');
     }
 
-    const [bookings, addons] = await Promise.all([
+    const [bookings, addons, schedule] = await Promise.all([
       Staff.listTodayBookings(date),
       Staff.listAddons(),
+      Staff.listCourtSchedule(date),
     ]);
 
-    return res.json({ success: true, date, bookings, addons });
+    return res.json({ success: true, date, bookings, addons, schedule });
   } catch (error) {
     console.error('Staff dashboard error:', error);
     return sendError(res, 500, 'Loi may chu khi tai dashboard Staff.');

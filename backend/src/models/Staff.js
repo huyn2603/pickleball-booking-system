@@ -42,8 +42,51 @@ function mapAddon(row) {
   };
 }
 
+function mapScheduleCourt(row) {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    status: row.status,
+    statusLabel: row.status_label,
+    openTime: normalizeTime(row.open_time),
+    closeTime: normalizeTime(row.close_time),
+  };
+}
+
 function createTransactionCode() {
   return `PAY-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
+
+function toMinutes(time) {
+  const [hours, minutes] = normalizeTime(time).split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function fromMinutes(total) {
+  const hours = String(Math.floor(total / 60)).padStart(2, '0');
+  const minutes = String(total % 60).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+function buildSlots(openTime = '05:00', closeTime = '22:00', slotMinutes = 60) {
+  const slots = [];
+  let current = toMinutes(openTime);
+  const close = toMinutes(closeTime);
+
+  while (current + slotMinutes <= close) {
+    slots.push({
+      startTime: fromMinutes(current),
+      endTime: fromMinutes(current + slotMinutes),
+    });
+    current += slotMinutes;
+  }
+
+  return slots;
+}
+
+function findOverlap(slot, items) {
+  return items.find((item) => slot.startTime < item.endTime && slot.endTime > item.startTime);
 }
 
 async function listTodayBookings(date) {
@@ -77,6 +120,131 @@ async function listTodayBookings(date) {
   );
 
   return rows.map(mapBooking);
+}
+
+async function listCourtSchedule(date) {
+  const settingsRows = await query(
+    `SELECT open_time, close_time, slot_minutes
+     FROM settings
+     ORDER BY id ASC
+     LIMIT 1`,
+  );
+  const settings = settingsRows[0] || {};
+  const defaultOpen = normalizeTime(settings.open_time) || '05:00';
+  const defaultClose = normalizeTime(settings.close_time) || '22:00';
+  const slotMinutes = Number(settings.slot_minutes || 60);
+
+  const courtRows = await query(
+    `SELECT
+       c.id,
+       c.code,
+       c.name,
+       c.status,
+       CASE
+         WHEN c.status = 'available' THEN 'Trống'
+         WHEN c.status = 'maintenance' THEN 'Bảo trì'
+         ELSE 'Tạm ngưng'
+       END AS status_label,
+       COALESCE(b.open_time, :defaultOpen) AS open_time,
+       COALESCE(b.close_time, :defaultClose) AS close_time
+     FROM courts c
+     JOIN branches b ON b.id = c.branch_id
+     ORDER BY b.code ASC, c.code ASC`,
+    { defaultOpen, defaultClose },
+  );
+  const courts = courtRows.map(mapScheduleCourt);
+  const timeSlots = buildSlots(defaultOpen, defaultClose, slotMinutes);
+
+  const bookingRows = await query(
+    `SELECT
+       bs.court_id,
+       bs.start_time,
+       bs.end_time,
+       b.booking_code,
+       b.booking_status,
+       u.full_name AS customer_name
+     FROM booking_slots bs
+     JOIN bookings b ON b.id = bs.booking_id
+     JOIN users u ON u.id = b.customer_id
+     WHERE bs.booking_date = :date
+       AND b.booking_status IN ('pending', 'confirmed', 'checked_in')
+     ORDER BY bs.court_id ASC, bs.start_time ASC`,
+    { date },
+  );
+
+  const holdRows = await query(
+    `SELECT court_id, start_time, end_time, hold_code
+     FROM slot_holds
+     WHERE booking_date = :date
+       AND status = 'active'
+       AND expires_at > NOW()
+     ORDER BY court_id ASC, start_time ASC`,
+    { date },
+  );
+
+  const bookingsByCourt = new Map();
+  bookingRows.forEach((row) => {
+    const courtId = Number(row.court_id);
+    const items = bookingsByCourt.get(courtId) || [];
+    items.push({
+      startTime: normalizeTime(row.start_time),
+      endTime: normalizeTime(row.end_time),
+      bookingCode: row.booking_code,
+      bookingStatus: row.booking_status,
+      customerName: row.customer_name,
+    });
+    bookingsByCourt.set(courtId, items);
+  });
+
+  const holdsByCourt = new Map();
+  holdRows.forEach((row) => {
+    const courtId = Number(row.court_id);
+    const items = holdsByCourt.get(courtId) || [];
+    items.push({
+      startTime: normalizeTime(row.start_time),
+      endTime: normalizeTime(row.end_time),
+      holdCode: row.hold_code,
+    });
+    holdsByCourt.set(courtId, items);
+  });
+
+  return {
+    date,
+    timeSlots,
+    courts: courts.map((court) => {
+      const courtOpen = court.openTime || defaultOpen;
+      const courtClose = court.closeTime || defaultClose;
+      const courtBookings = bookingsByCourt.get(Number(court.id)) || [];
+      const courtHolds = holdsByCourt.get(Number(court.id)) || [];
+
+      return {
+        ...court,
+        slots: timeSlots.map((slot) => {
+          if (slot.startTime < courtOpen || slot.endTime > courtClose || court.status !== 'available') {
+            return { ...slot, status: 'maintenance', label: court.statusLabel };
+          }
+
+          const booking = findOverlap(slot, courtBookings);
+          if (booking) {
+            return {
+              ...slot,
+              status: booking.bookingStatus === 'pending' ? 'hold' : 'booked',
+              label: booking.bookingStatus === 'pending' ? 'Đang giữ' : 'Đã đặt',
+              bookingCode: booking.bookingCode,
+              customerName: booking.customerName,
+            };
+          }
+
+          const hold = findOverlap(slot, courtHolds);
+          if (hold) {
+            return { ...slot, status: 'hold', label: 'Đang giữ', holdCode: hold.holdCode };
+          }
+
+          return { ...slot, status: 'available', label: 'Trống' };
+        }),
+      };
+    }),
+  };
 }
 
 async function findBooking(id) {
@@ -115,7 +283,7 @@ async function findBooking(id) {
 async function checkIn(bookingId, staffId) {
   await transaction(async (connection) => {
     const [rows] = await connection.execute(
-      'SELECT id, booking_status FROM bookings WHERE id = :bookingId FOR UPDATE',
+      'SELECT id, booking_status, payment_status FROM bookings WHERE id = :bookingId FOR UPDATE',
       { bookingId },
     );
     const booking = rows[0];
@@ -128,6 +296,12 @@ async function checkIn(bookingId, staffId) {
 
     if (booking.booking_status !== 'confirmed') {
       const error = new Error('Chi booking da xac nhan moi duoc check-in.');
+      error.status = 400;
+      throw error;
+    }
+
+    if (booking.payment_status !== 'paid') {
+      const error = new Error('Vui long ghi nhan thanh toan tai quay truoc khi check-in.');
       error.status = 400;
       throw error;
     }
@@ -285,6 +459,12 @@ async function recordCounterPayment({ bookingId, staffId, paymentMethod, note })
       throw error;
     }
 
+    if (!['pending', 'confirmed', 'checked_in'].includes(booking.booking_status)) {
+      const error = new Error('Chi co the ghi nhan thanh toan cho booking dang giu, da xac nhan hoac dang choi.');
+      error.status = 400;
+      throw error;
+    }
+
     await connection.execute(
       `INSERT INTO payment_transactions
         (transaction_code, booking_id, customer_id, amount, payment_method, status, paid_at, note)
@@ -367,6 +547,7 @@ module.exports = {
   cancelBooking,
   confirmBooking,
   listAddons,
+  listCourtSchedule,
   listTodayBookings,
   recordCounterPayment,
   updateAddonStock,
