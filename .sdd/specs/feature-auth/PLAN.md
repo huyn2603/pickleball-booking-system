@@ -1,4 +1,4 @@
-﻿# PLAN.md - FE01 Authentication
+﻿﻿# PLAN.md - FE01 Authentication
 
 Status: READY FOR REVIEW
 Date: 2026-06-23

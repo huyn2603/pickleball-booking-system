@@ -1,4 +1,4 @@
-﻿# CHANGELOG.md - FE13 Voucher
+﻿﻿# CHANGELOG.md - FE13 Voucher
 
 ## 2026-06-23
 

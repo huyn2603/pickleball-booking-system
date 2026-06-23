@@ -1,4 +1,4 @@
-﻿# CHANGELOG.md - FE17 Slot Suggestion
+﻿﻿# CHANGELOG.md - FE17 Slot Suggestion
 
 ## 2026-06-23
 

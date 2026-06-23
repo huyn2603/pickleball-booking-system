@@ -1,4 +1,4 @@
-﻿# CHANGELOG.md - FE01 Authentication
+﻿﻿# CHANGELOG.md - FE01 Authentication
 
 ## 2026-06-22
 

@@ -1,4 +1,4 @@
-﻿# PLAN.md - FE04 Staff Daily Operation
+﻿﻿# PLAN.md - FE04 Staff Daily Operation
 
 Status: READY FOR REVIEW
 Date: 2026-06-23
