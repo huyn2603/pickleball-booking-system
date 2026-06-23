@@ -1,17 +1,24 @@
 require('dotenv').config();
 
 const app = require('./app');
-const { connectDB } = require('./src/config/db');
+const { connectDB, getDbConfig } = require('./src/config/db');
 
 const PORT = process.env.PORT || 5000;
 
-connectDB()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Backend running at http://localhost:${PORT}`);
-    });
-  })
-  .catch((error) => {
-    console.error('Cannot start backend:', error.message);
-    process.exit(1);
+async function startServer() {
+  try {
+    await connectDB();
+  } catch (error) {
+    const dbConfig = getDbConfig();
+    console.error('Cannot connect to MySQL:', error.message);
+    console.error(
+      `Check backend/.env DB_USER and DB_PASSWORD for ${dbConfig.user}@${dbConfig.host}:${dbConfig.port}/${dbConfig.database}.`,
+    );
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Backend running at http://localhost:${PORT}`);
   });
+}
+
+startServer();

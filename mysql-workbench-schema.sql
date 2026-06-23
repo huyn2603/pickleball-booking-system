@@ -606,9 +606,17 @@ INSERT INTO booking_slots (booking_id, branch_id, court_id, booking_date, start_
   (2, 1, 6, CURDATE(), '09:30:00', '10:30:00', 140000),
   (3, 2, 8, CURDATE(), '15:00:00', '16:00:00', 145000);
 
-INSERT INTO payment_transactions (transaction_code, booking_id, customer_id, amount, payment_method, status, paid_at, note) VALUES
+INSERT INTO pickleball_booking_system.payment_transactions (transaction_code, booking_id, customer_id, amount, payment_method, status, paid_at, note) VALUES
   ('PAY-DEMO-001', 1, 15, 160000, 'bank_transfer', 'success', NOW(), 'Demo paid booking'),
-  ('PAY-DEMO-003', 3, 17, 145000, 'cash', 'success', NOW(), 'Demo counter booking');
+  ('PAY-DEMO-003', 3, 17, 145000, 'cash', 'success', NOW(), 'Demo counter booking')
+ON DUPLICATE KEY UPDATE
+  booking_id = VALUES(booking_id),
+  customer_id = VALUES(customer_id),
+  amount = VALUES(amount),
+  payment_method = VALUES(payment_method),
+  status = VALUES(status),
+  paid_at = VALUES(paid_at),
+  note = VALUES(note);
 
 SET SQL_MODE=@OLD_SQL_MODE;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;

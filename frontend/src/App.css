@@ -647,6 +647,179 @@ select:focus {
   gap: 18px;
 }
 
+.admin-workspace {
+  width: min(1320px, calc(100% - 48px));
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+
+.admin-shell {
+  width: min(1380px, calc(100% - 48px));
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 286px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.admin-sidebar {
+  position: sticky;
+  top: 88px;
+  display: grid;
+  gap: 18px;
+  border-right: 1px solid var(--hairline);
+  padding-right: 18px;
+}
+
+.admin-sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px 12px;
+}
+
+.admin-sidebar-logo,
+.admin-menu-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--canvas);
+  font-weight: 950;
+}
+
+.admin-sidebar-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.admin-sidebar-head div,
+.admin-menu button span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.admin-sidebar-head small,
+.admin-menu small,
+.admin-page-header p {
+  color: var(--mute);
+  font-weight: 800;
+}
+
+.admin-menu {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-menu button {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.admin-menu button:hover,
+.admin-menu button.active {
+  background: var(--canvas);
+  box-shadow: 0 1px 0 var(--hairline);
+}
+
+.admin-menu button.active {
+  outline: 2px solid #dcfbe6;
+}
+
+.admin-menu-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--success-bright), #1476ff);
+  font-size: 12px;
+}
+
+.admin-page {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.admin-page-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 18px;
+}
+
+.admin-page-header h1 {
+  margin: 8px 0 6px;
+  font-size: clamp(30px, 3vw, 44px);
+  line-height: 1;
+}
+
+.admin-page-header p {
+  margin: 0;
+}
+
+.admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-stat-grid article {
+  min-height: 112px;
+  display: grid;
+  align-content: space-between;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 18px;
+  background: var(--canvas);
+}
+
+.admin-stat-grid span {
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.admin-stat-grid strong {
+  color: var(--ink);
+  font-size: 34px;
+  line-height: 1;
+}
+
+.admin-feature-board {
+  min-height: 100%;
+}
+
+.admin-feature-list {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-feature-list button {
+  justify-content: flex-start;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.admin-settings-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .owner-tabs {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -2246,6 +2419,33 @@ select:focus {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .admin-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-sidebar {
+    position: static;
+    border-right: 0;
+    border-bottom: 1px solid var(--hairline);
+    padding-right: 0;
+    padding-bottom: 14px;
+  }
+
+  .admin-menu {
+    grid-template-columns: repeat(5, minmax(210px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .admin-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .court-detail-layout {
     grid-template-columns: 1fr;
   }
@@ -2309,6 +2509,8 @@ select:focus {
   .search-panel,
   .category-strip,
   .management-grid,
+  .admin-workspace,
+  .admin-shell,
   .owner-workspace,
   .staff-workspace,
   .my-bookings-layout {
@@ -2320,8 +2522,16 @@ select:focus {
   }
 
   .staff-stat-grid,
+  .admin-stat-grid,
+  .admin-feature-list,
+  .admin-settings-list,
   .addon-grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-menu {
+    grid-template-columns: 1fr;
+    overflow-x: visible;
   }
 
   .addon-card {

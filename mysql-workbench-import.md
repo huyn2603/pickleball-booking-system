@@ -6,7 +6,7 @@ File database: `mysql-workbench-schema.sql`
 
 Schema nay dung cho mot co so pickleball tai Ha Noi.
 
-- Khong co `branches`.
+- Co bang `branches` de quan ly cac chi nhanh nho trong Ha Noi.
 - Khong co `regions`.
 - Khong co `clubs`.
 - Khong co multi-tenant.
@@ -19,6 +19,14 @@ Schema nay dung cho mot co so pickleball tai Ha Noi.
 4. Chay toan bo script.
 5. Refresh tab `Schemas`.
 6. Chon database `pickleball_booking_system`.
+
+Neu chi chay rieng mot doan `INSERT`, hay chay dong nay truoc:
+
+```sql
+USE pickleball_booking_system;
+```
+
+Hoac mo file `fix-payment-transactions.sql` de them lai du lieu thanh toan demo.
 
 ## Bang duoc tao
 

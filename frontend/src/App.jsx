@@ -21,6 +21,13 @@ const roleLabels = {
   Customer: 'Khách hàng',
 }
 
+const accountStatusLabels = {
+  Active: 'Đang hoạt động',
+  Inactive: 'Ngưng kích hoạt',
+  Blocked: 'Đã khóa',
+  Unverified: 'Chờ duyệt',
+}
+
 function getTodayString() {
   const now = new Date()
   return [
@@ -173,6 +180,8 @@ function App() {
   const [courtSort, setCourtSort] = useState('code')
   const [courtPage, setCourtPage] = useState(1)
   const [selectedCourtId, setSelectedCourtId] = useState(null)
+  const [dashboardView, setDashboardView] = useState('profile')
+  const [adminView, setAdminView] = useState('accounts')
   const [ownerView, setOwnerView] = useState('courts')
   const [editingCourtId, setEditingCourtId] = useState(null)
   const [bookingNotice, setBookingNotice] = useState('')
@@ -216,6 +225,14 @@ function App() {
     email: '',
     phone: '',
     password: '123456',
+  })
+  const [accountForm, setAccountForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    password: '123456',
+    role: 'Customer',
+    status: 'Active',
   })
 
   const isRegister = mode === 'register'
@@ -344,6 +361,13 @@ function App() {
     }))
   }
 
+  function updateAccountField(event) {
+    setAccountForm((current) => ({
+      ...current,
+      [event.target.name]: event.target.value,
+    }))
+  }
+
   function updateCustomerSearch(event) {
     setCustomerSearch(event.target.value)
   }
@@ -402,11 +426,36 @@ function App() {
       setOwnerView(nextView)
     }
 
+    setDashboardView('owner')
     setPage('dashboard')
     setEditingProfile(false)
   }
 
+  function showAdminFeature(nextView = 'accounts') {
+    setAvatarMenuOpen(false)
+    setCourtTypeMenuOpen(false)
+    resetNotice()
+
+    if (!session) {
+      showAuth('login')
+      return
+    }
+
+    if (role === 'Admin') {
+      setAdminView(nextView)
+      setDashboardView('admin')
+      setPage('dashboard')
+      setEditingProfile(false)
+      fetchAccounts()
+    }
+  }
+
   function showManagement() {
+    if (role === 'Admin') {
+      showAdminFeature('accounts')
+      return
+    }
+
     showOwnerFeature('courts')
   }
 
@@ -589,6 +638,45 @@ function App() {
     }
   }
 
+  async function addManagedAccount(event) {
+    event.preventDefault()
+    setLoading(true)
+    resetNotice()
+
+    try {
+      const response = await fetch(`${API_URL}/auth/accounts`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(accountForm),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể tạo tài khoản.')
+      }
+
+      setAccountForm({
+        fullName: '',
+        email: '',
+        phone: '',
+        password: '123456',
+        role: 'Customer',
+        status: 'Active',
+      })
+      setMessage('Đã tạo tài khoản mới.')
+      setMessageType('success')
+      await fetchAccounts()
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   function getPageItems() {
     if (totalCourtPages <= 7) {
       return Array.from({ length: totalCourtPages }, (_, index) => index + 1)
@@ -606,6 +694,7 @@ function App() {
   }
 
   function showPersonalInfo() {
+    setDashboardView('profile')
     setPage('dashboard')
     setEditingProfile(false)
     setAvatarMenuOpen(false)
@@ -1025,7 +1114,14 @@ function App() {
   async function manageAccount(user, action) {
     const isDelete = action === 'delete'
     const isEdit = action === 'edit'
-    const willUnban = action === 'unban'
+    const isResetPassword = action === 'resetPassword'
+    const statusByAction = {
+      activate: 'Active',
+      unban: 'Active',
+      deactivate: 'Inactive',
+      suspend: 'Inactive',
+      ban: 'Blocked',
+    }
     if (isEdit) {
       const fullName = window.prompt('Họ tên', user.fullName || '')
       if (fullName === null) {
@@ -1070,6 +1166,41 @@ function App() {
       return
     }
 
+    if (isResetPassword) {
+      const password = window.prompt(`Mật khẩu mới cho ${user.fullName}`, '123456')
+      if (password === null) {
+        return
+      }
+
+      setLoading(true)
+      resetNotice()
+
+      try {
+        const response = await fetch(`${API_URL}/auth/accounts/${user.id}/password`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ password }),
+        })
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Không thể đặt lại mật khẩu.')
+        }
+
+        setMessage('Đã đặt lại mật khẩu tài khoản.')
+        setMessageType('success')
+      } catch (error) {
+        setMessage(error.message)
+        setMessageType('error')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
     const accepted = isDelete
       ? window.confirm('Bạn có chắc chắn xóa tài khoản này không?')
       : true
@@ -1082,13 +1213,14 @@ function App() {
     resetNotice()
 
     try {
+      const nextStatus = statusByAction[action] || 'Blocked'
       const response = await fetch(`${API_URL}/auth/accounts/${user.id}${isDelete ? '' : '/status'}`, {
         method: isDelete ? 'DELETE' : 'PATCH',
         headers: {
           Authorization: `Bearer ${session.token}`,
           'Content-Type': 'application/json',
         },
-        body: isDelete ? undefined : JSON.stringify({ status: willUnban ? 'Active' : 'Blocked' }),
+        body: isDelete ? undefined : JSON.stringify({ status: nextStatus }),
       })
       const data = await response.json()
 
@@ -1096,7 +1228,7 @@ function App() {
         throw new Error(data.message || 'Không thể cập nhật tài khoản.')
       }
 
-      setMessage(isDelete ? 'Đã xóa tài khoản.' : willUnban ? 'Đã mở ban tài khoản.' : 'Đã ban tài khoản.')
+      setMessage(isDelete ? 'Đã xóa tài khoản.' : `Đã cập nhật trạng thái tài khoản sang ${accountStatusLabels[nextStatus] || nextStatus}.`)
       setMessageType('success')
       await fetchAccounts()
     } catch (error) {
@@ -1255,14 +1387,14 @@ function App() {
           {role === 'Customer' && (
             <button type="button" onClick={showMyBookings}>Sân của tôi</button>
           )}
-          <button type="button" onClick={showManagement}>Phan mem quan ly</button>
+          <button type="button" onClick={showManagement}>Phần mềm quản lý</button>
           {role === 'Owner' && (
             <>
-              <button type="button" onClick={() => showOwnerFeature('courts')}>Quan ly san</button>
-              <button type="button" onClick={() => showOwnerFeature('bookings')}>Lich dat</button>
-              <button type="button" onClick={() => showOwnerFeature('customers')}>Khach hang</button>
-              <button type="button" onClick={() => showOwnerFeature('staff')}>Nhan vien</button>
-              <button type="button" onClick={() => showOwnerFeature('services')}>Dich vu</button>
+              <button type="button" onClick={() => showOwnerFeature('courts')}>Quản lý sân</button>
+              <button type="button" onClick={() => showOwnerFeature('bookings')}>Lịch đặt</button>
+              <button type="button" onClick={() => showOwnerFeature('customers')}>Khách hàng</button>
+              <button type="button" onClick={() => showOwnerFeature('staff')}>Nhân viên</button>
+              <button type="button" onClick={() => showOwnerFeature('services')}>Dịch vụ</button>
               <button type="button" onClick={() => showOwnerFeature('revenue')}>Doanh thu</button>
             </>
           )}
@@ -1297,6 +1429,18 @@ function App() {
                     <button type="button" onClick={showMyBookings} role="menuitem">
                       <span className="menu-icon">B</span>
                       Lịch đặt sân của tôi
+                    </button>
+                  )}
+                  {role === 'Admin' && (
+                    <button type="button" onClick={() => showAdminFeature('accounts')} role="menuitem">
+                      <span className="menu-icon">A</span>
+                      Quản trị hệ thống
+                    </button>
+                  )}
+                  {role === 'Owner' && (
+                    <button type="button" onClick={() => showOwnerFeature('courts')} role="menuitem">
+                      <span className="menu-icon">O</span>
+                      Quản lý sân
                     </button>
                   )}
                   <button type="button" role="menuitem">
@@ -1584,6 +1728,8 @@ function App() {
 
       {page === 'dashboard' && session && (
         <section className="dashboard-section" aria-label="Bảng điều khiển">
+          {dashboardView === 'profile' && (
+            <>
           <header className="dashboard-header">
             <div>
               <span className="hero-badge dark">Tài khoản {roleLabels[role] || role}</span>
@@ -1613,9 +1759,30 @@ function App() {
           ) : (
             <ProfileCard user={session.user} />
           )}
+            </>
+          )}
 
-          {role === 'Admin' && <AdminAccounts accounts={accounts} accountsLoading={accountsLoading} loading={loading} onManage={manageAccount} onRefresh={fetchAccounts} />}
-          {role === 'Owner' && (
+          {dashboardView !== 'profile' && message && <p className={`message ${messageType}`}>{message}</p>}
+
+          {role === 'Admin' && dashboardView === 'admin' && (
+            <AdminAccounts
+              accounts={accounts}
+              accountsLoading={accountsLoading}
+              loading={loading}
+              adminView={adminView}
+              onAdminView={setAdminView}
+              accountForm={accountForm}
+              onAccountField={updateAccountField}
+              onAddAccount={addManagedAccount}
+              staffForm={staffForm}
+              onStaffField={updateStaffField}
+              onAddStaff={addStaff}
+              onManage={manageAccount}
+              onCustomerHistory={viewCustomerHistory}
+              onRefresh={fetchAccounts}
+            />
+          )}
+          {role === 'Owner' && dashboardView === 'owner' && (
             <OwnerTools
               accounts={accounts}
               accountsLoading={accountsLoading}
@@ -1648,7 +1815,7 @@ function App() {
               onAddStaff={addStaff}
             />
           )}
-          {role === 'Staff' && (
+          {role === 'Staff' && dashboardView !== 'profile' && (
             <StaffToolsPanel
               dashboard={staffDashboard}
               loading={staffLoading}
@@ -1657,7 +1824,7 @@ function App() {
               onAddonStock={handleAddonStock}
             />
           )}
-          {role === 'Customer' && <CustomerTools />}
+          {role === 'Customer' && dashboardView !== 'profile' && <CustomerTools />}
         </section>
       )}
     </main>
@@ -1757,31 +1924,263 @@ function BookingListPanel({ title, bookings, empty, loading }) {
   )
 }
 
-function AdminAccounts({ accounts, accountsLoading, loading, onManage, onRefresh }) {
+function AdminAccounts({ accounts, accountsLoading, loading, adminView = 'accounts', onAdminView, accountForm, onAccountField, onAddAccount, staffForm, onStaffField, onAddStaff, onManage, onCustomerHistory, onRefresh }) {
   const roles = ['Customer', 'Owner', 'Staff']
+  const byRole = accounts?.byRole || {}
+  const allUsers = roles.flatMap((role) => byRole[role] || [])
+  const activeCount = allUsers.filter((user) => user.status === 'Active').length
+  const inactiveCount = allUsers.filter((user) => user.status === 'Inactive').length
+  const bannedCount = accounts?.banned?.length || 0
+  const ownerUsers = byRole.Owner || []
+  const customerUsers = byRole.Customer || []
+  const staffUsers = byRole.Staff || []
+  const revenueSeed = allUsers.length * 275000
+  const featureGroups = [
+    {
+      title: 'Quản lý hệ thống',
+      items: ['Cài đặt hệ thống', 'Quản lý danh mục', 'Quản lý thông báo', 'Nội dung trang chủ'],
+    },
+    {
+      title: 'Báo cáo & thống kê',
+      items: ['Xem báo cáo doanh thu', 'Xem thống kê hệ thống', 'Tạo báo cáo', 'Xuất báo cáo'],
+    },
+  ]
+  const adminMenu = [
+    { id: 'accounts', icon: 'TK', label: 'Quản lý tài khoản', description: 'Tạo tài khoản, khóa và đặt lại mật khẩu' },
+    { id: 'owners', icon: 'CS', label: 'Quản lý chủ sân', description: 'Duyệt, cập nhật và tạm ngưng chủ sân' },
+    { id: 'customers', icon: 'KH', label: 'Quản lý khách hàng', description: 'Tìm kiếm, khóa/mở khóa và xem hoạt động' },
+    { id: 'staff', icon: 'NV', label: 'Quản lý nhân viên', description: 'Tạo, cập nhật và xóa tài khoản nhân viên' },
+    { id: 'system', icon: 'HT', label: 'Quản lý hệ thống', description: 'Cài đặt, danh mục, thông báo, trang chủ' },
+    { id: 'reports', icon: 'BC', label: 'Báo cáo & thống kê', description: 'Doanh thu, thống kê và xuất báo cáo' },
+  ]
+  const activeMenu = adminMenu.find((item) => item.id === adminView) || adminMenu[0]
 
   return (
-    <section className="management-grid admin-accounts-grid" aria-label="Admin quản lý tài khoản">
-      <AccountGroup
-        title="Tài khoản bị ban"
-        users={accounts?.banned || []}
-        empty="Chưa có tài khoản bị ban."
-        loading={accountsLoading}
-        headerAction={<button type="button" className="secondary-button small" onClick={onRefresh} disabled={accountsLoading}>Tải lại</button>}
-        actions={{ loading, onManage, allowBan: true, allowDelete: false }}
-      />
-      {roles.map((role) => (
+    <section className="admin-shell" aria-label="Admin quản lý hệ thống">
+      <aside className="admin-sidebar" aria-label="Menu quản trị">
+        <div className="admin-sidebar-head">
+          <span className="admin-sidebar-logo">PB</span>
+          <div>
+            <strong>Trung tâm quản trị</strong>
+            <small>Đặt sân pickleball</small>
+          </div>
+        </div>
+        <nav className="admin-menu" aria-label="Chức năng admin">
+          {adminMenu.map((item) => (
+            <button type="button" key={item.id} className={adminView === item.id ? 'active' : ''} onClick={() => onAdminView(item.id)}>
+              <span className="admin-menu-icon">{item.icon}</span>
+              <span>
+                <strong>{item.label}</strong>
+                <small>{item.description}</small>
+              </span>
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <section className="admin-page" aria-label={activeMenu.label}>
+        <header className="admin-page-header">
+          <div>
+            <span className="hero-badge dark">Quản trị</span>
+            <h1>{activeMenu.label}</h1>
+            <p>{activeMenu.description}</p>
+          </div>
+          <button type="button" className="secondary-button" onClick={onRefresh} disabled={accountsLoading}>
+            {accountsLoading ? 'Đang tải...' : 'Tải lại dữ liệu'}
+          </button>
+        </header>
+        {adminView === 'accounts' && (
+          <>
+      <div className="admin-stat-grid">
+        <article><span>Tổng tài khoản</span><strong>{allUsers.length}</strong></article>
+        <article><span>Đang hoạt động</span><strong>{activeCount}</strong></article>
+        <article><span>Tạm khóa</span><strong>{inactiveCount + bannedCount}</strong></article>
+        <article><span>Chủ sân chờ duyệt</span><strong>{ownerUsers.filter((user) => user.status === 'Unverified').length}</strong></article>
+      </div>
+
+      <section className="management-grid two-col" aria-label="Tạo và quản lý tài khoản">
+        <AccountCreator accountForm={accountForm} loading={loading} onAccountField={onAccountField} onAddAccount={onAddAccount} />
         <AccountGroup
-          key={role}
-          title={`Danh sách ${roleLabels[role]}`}
-          users={accounts?.byRole?.[role] || []}
-          empty={`Chưa có ${roleLabels[role]}.`}
+          title="Tài khoản bị khóa"
+          users={accounts?.banned || []}
+          empty="Chưa có tài khoản bị khóa."
           loading={accountsLoading}
           headerAction={<button type="button" className="secondary-button small" onClick={onRefresh} disabled={accountsLoading}>Tải lại</button>}
-          actions={{ loading, onManage, allowBan: true, allowDelete: true }}
+          actions={{ loading, onManage, allowBan: true, allowDelete: false, allowReset: true }}
         />
-      ))}
+      </section>
+
+          </>
+        )}
+
+        {adminView === 'owners' && (
+      <section className="management-grid two-col" aria-label="Quản lý owner và khách hàng">
+        <AccountGroup
+          title="Quản lý chủ sân"
+          users={ownerUsers}
+          empty="Chưa có chủ sân."
+          loading={accountsLoading}
+          headerAction={<span>{ownerUsers.length}</span>}
+          actions={{ loading, onManage, allowBan: false, allowDelete: true, allowEdit: true, allowReset: true, allowDeactivate: true, ownerMode: true }}
+        />
+        <AdminFeatureBoard title="Luồng xử lý chủ sân" items={['Duyệt đăng ký chủ sân', 'Xem thông tin chủ sân', 'Cập nhật thông tin chủ sân', 'Tạm ngưng tài khoản chủ sân', 'Xóa tài khoản chủ sân']} />
+      </section>
+        )}
+
+        {adminView === 'customers' && (
+          <AdminCustomerPanel
+            customers={customerUsers}
+            loading={loading}
+            accountsLoading={accountsLoading}
+            onManage={onManage}
+            onHistory={onCustomerHistory}
+            onRefresh={onRefresh}
+          />
+        )}
+
+        {adminView === 'staff' && (
+          <section className="management-grid two-col" aria-label="Quản lý nhân viên">
+            <StaffEditor staffForm={staffForm} loading={loading} onStaffField={onStaffField} onAddStaff={onAddStaff} />
+            <AccountGroup
+              title="Danh sách nhân viên"
+              users={staffUsers}
+              empty="Chưa có nhân viên."
+              loading={accountsLoading}
+              actions={{ loading, onManage, allowBan: false, allowDelete: true, allowEdit: true, allowReset: true, allowDeactivate: true }}
+            />
+          </section>
+        )}
+
+        {adminView === 'system' && (
+      <section className="management-grid two-col" aria-label="Quản lý hệ thống">
+        <AdminFeatureBoard title={featureGroups[0].title} items={featureGroups[0].items} />
+        <SystemSettingsPanel />
+      </section>
+        )}
+
+        {adminView === 'reports' && (
+      <section className="management-grid two-col" aria-label="Báo cáo và thống kê">
+        <AdminFeatureBoard title={featureGroups[1].title} items={featureGroups[1].items} />
+        <AdminReportsPanel users={allUsers} customers={customerUsers} revenueSeed={revenueSeed} />
+      </section>
+        )}
     </section>
+    </section>
+  )
+}
+
+function AccountCreator({ accountForm, loading, onAccountField, onAddAccount }) {
+  return (
+    <article className="feature-panel owner-court-form">
+      <div className="panel-heading">
+        <h2>Tạo tài khoản</h2>
+        <span>Quản trị</span>
+      </div>
+      <form onSubmit={onAddAccount}>
+        <Field name="fullName" label="Họ tên" value={accountForm.fullName} onChange={onAccountField} placeholder="Nguyễn Văn A" />
+        <Field name="email" type="email" label="Email" value={accountForm.email} onChange={onAccountField} placeholder="account@gmail.com" />
+        <Field name="phone" label="Số điện thoại" value={accountForm.phone} onChange={onAccountField} placeholder="0901000000" />
+        <Field name="password" type="password" minLength="6" label="Mật khẩu" value={accountForm.password} onChange={onAccountField} />
+        <label>
+          Vai trò
+          <select name="role" value={accountForm.role} onChange={onAccountField}>
+            <option value="Customer">Khách hàng</option>
+            <option value="Owner">Chủ sân</option>
+            <option value="Staff">Nhân viên</option>
+          </select>
+        </label>
+        <button type="submit" className="primary-button" disabled={loading}>Tạo tài khoản</button>
+      </form>
+    </article>
+  )
+}
+
+function AdminCustomerPanel({ customers, loading, accountsLoading, onManage, onHistory, onRefresh }) {
+  const recentCustomers = [...customers].slice(0, 8)
+
+  return (
+    <article className="account-group">
+      <div className="panel-heading">
+        <h2>Quản lý khách hàng</h2>
+        <button type="button" className="secondary-button small" onClick={onRefresh} disabled={accountsLoading}>Tải lại</button>
+      </div>
+      <div className="account-list">
+        {accountsLoading && <p className="empty-text">Đang tải khách hàng từ database...</p>}
+        {!accountsLoading && recentCustomers.length === 0 && <p className="empty-text">Chưa có khách hàng.</p>}
+        {recentCustomers.map((customer) => (
+          <div className="account-row" key={customer.id}>
+            <div>
+              <strong>{customer.fullName}</strong>
+              <span>{customer.email}</span>
+              <small>{customer.phone || 'Chưa cập nhật'} - {customer.status}</small>
+            </div>
+            <div className="row-actions">
+              <button type="button" className="secondary-button small" onClick={() => onHistory(customer)} disabled={loading}>Hoạt động</button>
+              <button type="button" className="secondary-button small" onClick={() => onManage(customer, customer.status === 'Blocked' ? 'unban' : 'ban')} disabled={loading}>
+                {customer.status === 'Blocked' ? 'Mở khóa' : 'Khóa'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function AdminFeatureBoard({ title, items }) {
+  return (
+    <article className="feature-panel admin-feature-board">
+      <div className="panel-heading">
+        <h2>{title}</h2>
+        <span>Admin</span>
+      </div>
+      <div className="admin-feature-list">
+        {items.map((item) => (
+          <button type="button" className="secondary-button small" key={item}>{item}</button>
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function SystemSettingsPanel() {
+  const settings = [
+    { label: 'Cài đặt hệ thống', value: 'Đang hoạt động' },
+    { label: 'Danh mục', value: 'Sân, dịch vụ, báo cáo' },
+    { label: 'Thông báo', value: 'Email và thông báo hệ thống' },
+    { label: 'Nội dung trang chủ', value: 'Hero, tìm sân, danh mục nổi bật' },
+  ]
+
+  return (
+    <article className="staff-panel">
+      <div className="panel-heading">
+        <h2>Cấu hình hiện tại</h2>
+        <span>Đang bật</span>
+      </div>
+      <dl className="identity-list admin-settings-list">
+        {settings.map((item) => (
+          <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>
+        ))}
+      </dl>
+    </article>
+  )
+}
+
+function AdminReportsPanel({ users, customers, revenueSeed }) {
+  return (
+    <article className="staff-panel">
+      <div className="panel-heading">
+        <h2>Báo cáo nhanh</h2>
+        <button type="button" className="secondary-button small" onClick={() => window.print()}>Xuất báo cáo</button>
+      </div>
+      <dl className="identity-list">
+        <div><dt>Thống kê hệ thống</dt><dd>{users.length} tài khoản</dd></div>
+        <div><dt>Khách hàng</dt><dd>{customers.length}</dd></div>
+        <div><dt>Báo cáo doanh thu</dt><dd>{formatFullMoney(revenueSeed)}</dd></div>
+        <div><dt>Ngày tạo</dt><dd>{formatDateDisplay(getTodayString())}</dd></div>
+        <div><dt>Trạng thái</dt><dd>Sẵn sàng</dd></div>
+      </dl>
+    </article>
   )
 }
 
@@ -2226,7 +2625,7 @@ function StaffEditor({ staffForm, loading, onStaffField, onAddStaff }) {
     <article className="feature-panel">
       <div className="panel-heading">
         <h2>Thêm nhân viên</h2>
-        <span>Staff</span>
+        <span>Nhân viên</span>
       </div>
       <form onSubmit={onAddStaff}>
         <Field name="fullName" label="Họ tên" value={staffForm.fullName} onChange={onStaffField} placeholder="Nguyễn Văn A" />
@@ -3018,12 +3417,15 @@ function AccountGroup({ title, users, empty, loading = false, headerAction, acti
   const showBan = actions && actions.allowBan !== false
   const showDelete = actions && actions.allowDelete !== false
   const showEdit = actions && actions.allowEdit === true
+  const showReset = actions && actions.allowReset === true
+  const showDeactivate = actions && actions.allowDeactivate === true
+  const ownerMode = actions && actions.ownerMode === true
 
   return (
     <article className="account-group">
       <div className="panel-heading">
         <h2>{title}</h2>
-        {headerAction || <span>{loading ? 'DB' : users.length}</span>}
+        {headerAction || <span>{loading ? '...' : users.length}</span>}
       </div>
       <div className="account-list">
         {loading && <p className="empty-text">Đang tải danh sách từ database...</p>}
@@ -3033,13 +3435,28 @@ function AccountGroup({ title, users, empty, loading = false, headerAction, acti
             <div>
               <strong>{user.fullName}</strong>
               <span>{user.email}</span>
-              <small>{roleLabels[user.role] || user.role} - {user.status}</small>
+              <small>{roleLabels[user.role] || user.role} - {accountStatusLabels[user.status] || user.status}</small>
             </div>
             {actions && (
               <div className="row-actions">
                 {showEdit && (
                   <button type="button" className="secondary-button small" onClick={() => actions.onManage(user, 'edit')} disabled={actions.loading}>
                     Sửa
+                  </button>
+                )}
+                {ownerMode && user.status !== 'Active' && (
+                  <button type="button" className="primary-button small" onClick={() => actions.onManage(user, 'activate')} disabled={actions.loading}>
+                    Duyệt
+                  </button>
+                )}
+                {showDeactivate && user.status === 'Active' && (
+                  <button type="button" className="secondary-button small" onClick={() => actions.onManage(user, ownerMode ? 'suspend' : 'deactivate')} disabled={actions.loading}>
+                    {ownerMode ? 'Tạm ngưng' : 'Ngưng kích hoạt'}
+                  </button>
+                )}
+                {showDeactivate && user.status === 'Inactive' && (
+                  <button type="button" className="secondary-button small" onClick={() => actions.onManage(user, 'activate')} disabled={actions.loading}>
+                    Kích hoạt
                   </button>
                 )}
                 {showBan && (
@@ -3049,7 +3466,12 @@ function AccountGroup({ title, users, empty, loading = false, headerAction, acti
                     onClick={() => actions.onManage(user, user.status === 'Blocked' ? 'unban' : 'ban')}
                     disabled={actions.loading}
                   >
-                    {user.status === 'Blocked' ? 'Mở ban' : 'Ban'}
+                    {user.status === 'Blocked' ? 'Mở khóa' : 'Khóa'}
+                  </button>
+                )}
+                {showReset && (
+                  <button type="button" className="secondary-button small" onClick={() => actions.onManage(user, 'resetPassword')} disabled={actions.loading}>
+                    Đặt lại MK
                   </button>
                 )}
                 {showDelete && (
@@ -3071,7 +3493,7 @@ function FeaturePanel({ title, items }) {
     <article className="feature-panel">
       <div className="panel-heading">
         <h2>{title}</h2>
-        <span>Staff</span>
+        <span>Nhân viên</span>
       </div>
       <ul>
         {items.map((item) => <li key={item}>{item}</li>)}

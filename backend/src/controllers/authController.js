@@ -551,6 +551,31 @@ async function updateManagedAccount(req, res) {
   }
 }
 
+async function resetManagedAccountPassword(req, res) {
+  try {
+    if (!canUse(req, res, ['Admin', 'Owner'])) {
+      return null;
+    }
+
+    const user = await User.findById(req.params.id);
+    const managedRoles = manageableRolesFor(req.user.role);
+    if (!user || !managedRoles.includes(user.role)) {
+      return sendError(res, 404, 'Khong tim thay tai khoan duoc phep quan ly.');
+    }
+
+    const password = String(req.body?.password || '').trim();
+    if (password.length < 6) {
+      return sendError(res, 400, 'Mat khau moi phai co it nhat 6 ky tu.');
+    }
+
+    const updatedUser = await User.updatePassword(user.id, storePassword(password));
+    return res.json({ success: true, user: User.toSafeObject(updatedUser) });
+  } catch (error) {
+    console.error('Reset managed account password error:', error);
+    return sendError(res, 500, 'Loi may chu khi dat lai mat khau tai khoan.');
+  }
+}
+
 async function listManagedAccountBookings(req, res) {
   try {
     if (!canUse(req, res, ['Admin', 'Owner'])) {
@@ -602,6 +627,7 @@ module.exports = {
   me,
   register,
   requestPasswordResetOtp,
+  resetManagedAccountPassword,
   resetPasswordWithOtp,
   updateManagedAccountStatus,
   updateManagedAccount,
