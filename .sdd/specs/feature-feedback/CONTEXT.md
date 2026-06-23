@@ -1,4 +1,4 @@
-﻿# CONTEXT.md - FE01 Auth
+﻿# CONTEXT.md - FE11 Feedback
 
 # Version: 0.1.0
 
@@ -8,7 +8,7 @@
 
 # Last Updated: 2026-06-23
 
-# Feature folder: .sdd/specs/feature-auth/
+# Feature folder: .sdd/specs/feature-feedback/
 
 ---
 
@@ -38,13 +38,13 @@ Typical workflow:
 
 ## 3. Feature Boundary
 
-FE01 includes:
+FE11 includes:
 
 - Implement all acceptance scenarios in SPEC.md
 - Validate input on server
 - Enforce role/branch scope where applicable
 
-FE01 does not include:
+FE11 does not include:
 
 - Anything explicitly out of scope in SPEC.md
 
@@ -68,7 +68,7 @@ Potential issues to review:
 
 | Use Case ID | Use Case Name | Owner |
 | ----------- | ------------- | ----- |
-| US-PB-01 | Đăng ký / Đăng nhập | Dat |
+| US-PB-13 | Feedback & Đánh giá | Dat |
 
 ---
 
@@ -76,7 +76,7 @@ Potential issues to review:
 
 | Test ID | Test Name | Owner |
 | ------- | --------- | ----- |
-| FT-US-PB-01 | Đăng ký / Đăng nhập | Dat |
+| FT-US-PB-13 | Feedback & Đánh giá | Dat |
 
 ---
 
