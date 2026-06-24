@@ -18,8 +18,34 @@ function parsePositiveInteger(value) {
 }
 
 function extractHoldCode(text) {
-  const match = String(text || '').match(/HOLD-[0-9]+-[A-Z0-9]+/i);
-  return match ? match[0].toUpperCase() : '';
+  const normalized = String(text || '').toUpperCase();
+  const match = normalized.match(/HOLD[^A-Z0-9]*([0-9]{10,})[^A-Z0-9]*([A-Z0-9]{4,})/);
+  return match ? `HOLD-${match[1]}-${match[2]}` : '';
+}
+
+function parsePaymentAmount(item) {
+  const rawAmount = item.amount
+    ?? item.transferAmount
+    ?? item.creditAmount
+    ?? item.money
+    ?? 0;
+
+  if (typeof rawAmount === 'number') {
+    return rawAmount;
+  }
+
+  return Number(String(rawAmount).replace(/[^\d]/g, '')) || 0;
+}
+
+function getWebhookSecret(req) {
+  const authorization = String(req.get('authorization') || '').trim();
+  const authorizationToken = authorization.replace(/^(apikey|bearer)\s+/i, '');
+
+  return req.get('x-webhook-secret')
+    || req.get('secure-token')
+    || authorizationToken
+    || req.query.secret
+    || '';
 }
 
 function normalizeWebhookTransactions(body) {
@@ -168,7 +194,7 @@ async function vietQrWebhook(req, res) {
   try {
     const configuredSecret = process.env.VIETQR_WEBHOOK_SECRET || '';
     if (configuredSecret) {
-      const receivedSecret = req.get('x-webhook-secret') || req.get('secure-token') || req.query.secret || '';
+      const receivedSecret = getWebhookSecret(req);
       if (receivedSecret !== configuredSecret) {
         return sendError(res, 401, 'Webhook token khong hop le.');
       }
@@ -179,12 +205,24 @@ async function vietQrWebhook(req, res) {
     const ignored = [];
 
     for (const item of transactions) {
-      const description = item.description || item.content || item.addInfo || item.memo || '';
-      const holdCode = extractHoldCode(description);
-      const amount = Number(item.amount || item.transferAmount || item.creditAmount || item.money || 0);
+      const paymentText = [
+        item.content,
+        item.description,
+        item.addInfo,
+        item.memo,
+        item.transactionContent,
+        item.code,
+      ].filter(Boolean).join(' ');
+      const holdCode = extractHoldCode(paymentText);
+      const amount = parsePaymentAmount(item);
+
+      if (String(item.transferType || '').toLowerCase() === 'out') {
+        ignored.push({ reason: 'outgoing_transaction' });
+        continue;
+      }
 
       if (!holdCode || amount <= 0) {
-        ignored.push({ reason: 'missing_hold_or_amount', description });
+        ignored.push({ reason: 'missing_hold_or_amount', description: paymentText });
         continue;
       }
 
