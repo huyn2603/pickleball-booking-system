@@ -4,6 +4,7 @@ const authRoutes = require('./src/routes/authRoutes');
 const bookingRoutes = require('./src/routes/bookingRoutes');
 const courtRoutes = require('./src/routes/courtRoutes');
 const staffRoutes = require('./src/routes/staffRoutes');
+const ownerRoutes = require('./src/routes/ownerRoutes');
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/courts', courtRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/api/owner', ownerRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Khong tim thay API.' });

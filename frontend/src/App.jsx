@@ -45,6 +45,20 @@ function formatFullMoney(value) {
   return `${Number(value || 0).toLocaleString('vi-VN')}đ`
 }
 
+function translateApiMessage(message) {
+  const translations = {
+    'Da cap nhat so luong addon.': 'Đã cập nhật số lượng dịch vụ.',
+    'Da xac nhan booking.': 'Đã xác nhận đơn đặt sân.',
+    'Da huy booking.': 'Đã hủy đơn đặt sân.',
+    'Check-in thanh cong.': 'Check-in thành công.',
+    'Check-out thanh cong.': 'Check-out thành công.',
+    'Da ghi nhan thanh toan tai quay.': 'Đã ghi nhận thanh toán tại quầy.',
+    'Khong the cap nhat booking.': 'Không thể cập nhật đơn đặt sân.',
+    'Khong the cap nhat addon.': 'Không thể cập nhật dịch vụ.',
+  }
+  return translations[message] || message || ''
+}
+
 function buildQrUrl(amount, content) {
   const params = new URLSearchParams({
     amount: String(Number(amount || 0)),
@@ -183,6 +197,8 @@ function App() {
   const [dashboardView, setDashboardView] = useState('profile')
   const [adminView, setAdminView] = useState('accounts')
   const [ownerView, setOwnerView] = useState('courts')
+  const [ownerWorkspace, setOwnerWorkspace] = useState({ schedules: [], priceRules: [], promotions: [], feedback: [], report: {}, bookingStatuses: [], notifications: [] })
+  const [ownerLoading, setOwnerLoading] = useState(false)
   const [editingCourtId, setEditingCourtId] = useState(null)
   const [bookingNotice, setBookingNotice] = useState('')
   const [mode, setMode] = useState('login')
@@ -334,11 +350,25 @@ function App() {
   }, [session?.token, role])
 
   useEffect(() => {
+    if (session && role === 'Owner') fetchOwnerWorkspace()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.token, role])
+
+  useEffect(() => {
     if (session && role === 'Customer') {
       fetchMyBookings()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.token, role])
+
+  useEffect(() => {
+    if (!message || messageType !== 'success') return undefined
+    const timer = window.setTimeout(() => {
+      setMessage('')
+      setMessageType('')
+    }, 4500)
+    return () => window.clearTimeout(timer)
+  }, [message, messageType])
 
   function updateField(event) {
     setForm((current) => ({
@@ -811,6 +841,38 @@ function App() {
     }
   }
 
+  function changeOwnerView(nextView) {
+    resetNotice()
+    setOwnerView(nextView)
+  }
+
+  async function fetchOwnerWorkspace() {
+    if (!session?.token) return
+    setOwnerLoading(true)
+    try {
+      const response = await fetch(`${API_URL}/owner/workspace?date=${staffDashboard.date}`, { headers: { Authorization: `Bearer ${session.token}` } })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || 'Không thể tải dữ liệu quản lý Owner.')
+      setOwnerWorkspace(data)
+    } catch (error) {
+      setMessage(error.message); setMessageType('error')
+    } finally { setOwnerLoading(false) }
+  }
+
+  async function ownerMutation(path, options = {}) {
+    setOwnerLoading(true); resetNotice()
+    try {
+      const response = await fetch(`${API_URL}/owner${path}`, { ...options, headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json', ...(options.headers || {}) } })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || 'Không thể lưu thay đổi.')
+      setMessage(translateApiMessage(data.message) || 'Đã cập nhật dữ liệu.'); setMessageType('success')
+      await fetchOwnerWorkspace()
+      if (path.startsWith('/bookings/') || path.startsWith('/services')) await fetchStaffDashboard()
+    } catch (error) {
+      setMessage(translateApiMessage(error.message)); setMessageType('error')
+    } finally { setOwnerLoading(false) }
+  }
+
   async function fetchMyBookings() {
     if (!session?.token || session.user?.role !== 'Customer') {
       return
@@ -859,14 +921,14 @@ function App() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.message || 'Khong the cap nhat booking.')
+        throw new Error(translateApiMessage(data.message) || 'Không thể cập nhật đơn đặt sân.')
       }
 
-      setMessage(data.extraMinutes ? `${data.message} Phat sinh ${data.extraMinutes} phut.` : data.message)
+      setMessage(data.extraMinutes ? `${translateApiMessage(data.message)} Phát sinh ${data.extraMinutes} phút.` : translateApiMessage(data.message))
       setMessageType('success')
       await fetchStaffDashboard()
     } catch (error) {
-      setMessage(error.message)
+      setMessage(translateApiMessage(error.message))
       setMessageType('error')
     } finally {
       setStaffLoading(false)
@@ -888,14 +950,14 @@ function App() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.message || 'Khong the cap nhat addon.')
+        throw new Error(translateApiMessage(data.message) || 'Không thể cập nhật dịch vụ.')
       }
 
-      setMessage(data.message)
+      setMessage(translateApiMessage(data.message) || 'Đã cập nhật số lượng dịch vụ.')
       setMessageType('success')
       await fetchStaffDashboard()
     } catch (error) {
-      setMessage(error.message)
+      setMessage(translateApiMessage(error.message))
       setMessageType('error')
     } finally {
       setStaffLoading(false)
@@ -1388,16 +1450,6 @@ function App() {
             <button type="button" onClick={showMyBookings}>Sân của tôi</button>
           )}
           <button type="button" onClick={showManagement}>Phần mềm quản lý</button>
-          {role === 'Owner' && (
-            <>
-              <button type="button" onClick={() => showOwnerFeature('courts')}>Quản lý sân</button>
-              <button type="button" onClick={() => showOwnerFeature('bookings')}>Lịch đặt</button>
-              <button type="button" onClick={() => showOwnerFeature('customers')}>Khách hàng</button>
-              <button type="button" onClick={() => showOwnerFeature('staff')}>Nhân viên</button>
-              <button type="button" onClick={() => showOwnerFeature('services')}>Dịch vụ</button>
-              <button type="button" onClick={() => showOwnerFeature('revenue')}>Doanh thu</button>
-            </>
-          )}
         </div>
 
         <div className="nav-actions">
@@ -1793,7 +1845,7 @@ function App() {
               dashboard={staffDashboard}
               dashboardLoading={staffLoading}
               ownerView={ownerView}
-              onOwnerView={setOwnerView}
+              onOwnerView={changeOwnerView}
               onManage={manageAccount}
               customerSearch={customerSearch}
               onCustomerSearch={updateCustomerSearch}
@@ -1813,6 +1865,10 @@ function App() {
               staffForm={staffForm}
               onStaffField={updateStaffField}
               onAddStaff={addStaff}
+              workspace={ownerWorkspace}
+              ownerLoading={ownerLoading}
+              onRefreshOwner={fetchOwnerWorkspace}
+              onOwnerMutation={ownerMutation}
             />
           )}
           {role === 'Staff' && dashboardView !== 'profile' && (
@@ -2270,25 +2326,41 @@ function OwnerTools({
   staffForm,
   onStaffField,
   onAddStaff,
+  workspace,
+  ownerLoading,
+  onRefreshOwner,
+  onOwnerMutation,
 }) {
-  const ownerTabs = [
-    { id: 'courts', label: 'Xem danh sách sân' },
-    { id: 'bookings', label: 'Lịch đặt sân' },
-    { id: 'customers', label: 'Xem danh sách khách hàng' },
-    { id: 'staff', label: 'Xem danh sách nhân viên' },
-    { id: 'services', label: 'Dịch vụ kèm' },
-    { id: 'revenue', label: 'Doanh thu' },
+  const ownerMenu = [
+    { id: 'courts', icon: 'SA', label: 'Quản lý sân', description: 'Thêm, sửa, xóa và xem danh sách sân' },
+    { id: 'schedule', icon: 'LH', label: 'Lịch hoạt động', description: 'Giờ mở cửa, đóng cửa và bảo trì' },
+    { id: 'bookings', icon: 'ĐS', label: 'Quản lý đặt sân', description: 'Xác nhận, hủy và chỉnh sửa đơn' },
+    { id: 'pricing', icon: 'BG', label: 'Quản lý bảng giá', description: 'Giá theo giờ, ngày thường và cuối tuần' },
+    { id: 'services', icon: 'DV', label: 'Quản lý dịch vụ', description: 'Vợt, bóng, nước uống và tồn kho' },
+    { id: 'staff', icon: 'NV', label: 'Quản lý nhân viên', description: 'Tạo tài khoản và phân công công việc' },
+    { id: 'promotions', icon: 'KM', label: 'Quản lý khuyến mãi', description: 'Chương trình ưu đãi và mã giảm giá' },
+    { id: 'revenue', icon: 'DT', label: 'Xem doanh thu', description: 'Doanh thu ngày, tuần và tháng' },
+    { id: 'reports', icon: 'BC', label: 'Báo cáo & thống kê', description: 'Booking, tỷ lệ sử dụng và doanh thu' },
+    { id: 'customers', icon: 'KH', label: 'Quản lý khách hàng', description: 'Danh sách và lịch sử đặt sân' },
+    { id: 'feedback', icon: 'PH', label: 'Quản lý phản hồi', description: 'Đánh giá và góp ý của khách hàng' },
+    { id: 'notifications', icon: 'TB', label: 'Thông báo hệ thống', description: `${workspace.notifications?.length || 0} thông báo cần chú ý` },
   ]
+  const activeMenu = ownerMenu.find((item) => item.id === ownerView) || ownerMenu[0]
+  const activeCourts = courts.filter((court) => court.status === 'available').length
+  const todayBookings = dashboard.bookings?.length || 0
+  const todayRevenue = (dashboard.bookings || []).reduce((sum, booking) => sum + Number(booking.paidAmount || 0), 0)
 
   return (
-    <section className="owner-workspace" aria-label="Owner quản lý dữ liệu">
-      <div className="owner-tabs" role="tablist" aria-label="Chọn danh sách quản lý">
-        {ownerTabs.map((tab) => (
-          <button type="button" key={tab.id} className={ownerView === tab.id ? 'active' : ''} onClick={() => onOwnerView(tab.id)}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+    <section className="admin-shell owner-admin-shell" aria-label="Trung tâm quản lý chủ sân">
+      <aside className="admin-sidebar" aria-label="Menu quản lý chủ sân">
+        <div className="admin-sidebar-head"><span className="admin-sidebar-logo">PB</span><div><strong>Trung tâm quản lý</strong><small>Chủ sân pickleball</small></div></div>
+        <nav className="admin-menu" aria-label="Chức năng Owner">
+          {ownerMenu.map((item) => <button type="button" key={item.id} className={ownerView === item.id ? 'active' : ''} onClick={() => onOwnerView(item.id)}><span className="admin-menu-icon">{item.icon}</span><span><strong>{item.label}</strong><small>{item.description}</small></span></button>)}
+        </nav>
+      </aside>
+      <section className="admin-page">
+        <header className="admin-page-header"><div><span className="hero-badge dark">CHỦ SÂN</span><h1>{activeMenu.label}</h1><p>{activeMenu.description}</p></div><button type="button" className="secondary-button" onClick={() => { onRefreshOwner(); onRefreshDashboard(); onRefreshCourts() }} disabled={ownerLoading || dashboardLoading}>Tải lại dữ liệu</button></header>
+        <div className="admin-stat-grid owner-overview-stats"><article><span>Tổng số sân</span><strong>{courts.length}</strong></article><article><span>Đang hoạt động</span><strong>{activeCourts}</strong></article><article><span>Booking hôm nay</span><strong>{todayBookings}</strong></article><article><span>Doanh thu hôm nay</span><strong>{formatFullMoney(todayRevenue)}</strong></article></div>
 
       {ownerView === 'courts' && (
         <section className="management-grid two-col" aria-label="Danh sách sân">
@@ -2298,8 +2370,11 @@ function OwnerTools({
       )}
 
       {ownerView === 'bookings' && (
-        <OwnerBookingPanel dashboard={dashboard} loading={dashboardLoading} onRefresh={onRefreshDashboard} onBookingAction={onBookingAction} />
+        <OwnerBookingPanel dashboard={dashboard} loading={dashboardLoading || ownerLoading} onRefresh={onRefreshDashboard} onBookingAction={onBookingAction} onEditBooking={onOwnerMutation} />
       )}
+
+      {ownerView === 'schedule' && <OwnerSchedulePanel schedules={workspace.schedules || []} loading={ownerLoading} onSave={onOwnerMutation} onRefresh={onRefreshOwner} />}
+      {ownerView === 'pricing' && <OwnerPricingPanel rules={workspace.priceRules || []} courts={courts} branches={branches} loading={ownerLoading} onSave={onOwnerMutation} />}
 
       {ownerView === 'customers' && (
         <section className="management-grid" aria-label="Danh sách khách hàng">
@@ -2331,15 +2406,44 @@ function OwnerTools({
       )}
 
       {ownerView === 'services' && (
-        <OwnerServicesPanel addons={dashboard.addons || []} loading={dashboardLoading} onRefresh={onRefreshDashboard} onAddonStock={onAddonStock} />
+        <OwnerServicesPanel addons={dashboard.addons || []} loading={dashboardLoading || ownerLoading} onRefresh={onRefreshDashboard} onAddonStock={onAddonStock} onManage={onOwnerMutation} />
       )}
 
       {ownerView === 'revenue' && (
         <OwnerRevenuePanel dashboard={dashboard} loading={dashboardLoading} onRefresh={onRefreshDashboard} />
       )}
+      {ownerView === 'promotions' && <OwnerPromotionPanel promotions={workspace.promotions || []} loading={ownerLoading} onSave={onOwnerMutation} />}
+      {ownerView === 'reports' && <OwnerReportsPanel workspace={workspace} dashboard={dashboard} />}
+      {ownerView === 'feedback' && <OwnerFeedbackPanel items={workspace.feedback || []} loading={ownerLoading} onSave={onOwnerMutation} />}
+      {ownerView === 'notifications' && <OwnerNotificationsPanel items={workspace.notifications || []} loading={ownerLoading} onRefresh={onRefreshOwner} />}
+      </section>
     </section>
   )
 }
+
+function OwnerSchedulePanel({ schedules, loading, onSave, onRefresh }) {
+  function submit(event, branch) { event.preventDefault(); onSave(`/schedules/${branch.id}`, { method: 'PATCH', body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) }) }
+  return <article className="staff-panel"><div className="panel-heading"><h2>Lịch hoạt động và bảo trì</h2><button type="button" className="secondary-button small" onClick={onRefresh}>Tải lại</button></div><div className="owner-card-grid">{schedules.map((branch) => <form className="owner-admin-card" key={branch.id} onSubmit={(event) => submit(event, branch)}><div><strong>{branch.name}</strong><small>{branch.code}</small></div><label>Giờ mở cửa<input name="openTime" type="time" defaultValue={branch.open_time} required /></label><label>Giờ đóng cửa<input name="closeTime" type="time" defaultValue={branch.close_time} required /></label><label>Trạng thái<select name="status" defaultValue={branch.status}><option value="active">Hoạt động</option><option value="maintenance">Bảo trì</option><option value="inactive">Tạm đóng</option></select></label><button className="primary-button small" disabled={loading}>Lưu lịch</button></form>)}</div></article>
+}
+
+function OwnerPricingPanel({ rules, courts, branches, loading, onSave }) {
+  function submit(event) { event.preventDefault(); onSave('/price-rules', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) }); event.currentTarget.reset() }
+  return <section className="management-grid two-col"><article className="feature-panel owner-court-form"><div className="panel-heading"><h2>Thiết lập giá theo khung giờ</h2><span>VND</span></div><form onSubmit={submit}><Field name="name" label="Tên bảng giá" placeholder="Giá cuối tuần" /><label>Chi nhánh<select name="branchId"><option value="">Tất cả chi nhánh</option>{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Sân<select name="courtId"><option value="">Tất cả sân</option>{courts.map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}</select></label><label>Áp dụng<select name="dayOfWeek"><option value="">Mọi ngày</option><option value="1">Thứ hai</option><option value="2">Thứ ba</option><option value="3">Thứ tư</option><option value="4">Thứ năm</option><option value="5">Thứ sáu</option><option value="6">Thứ bảy</option><option value="7">Chủ nhật</option></select></label><div className="owner-inline-fields"><Field name="startTime" type="time" label="Từ giờ" /><Field name="endTime" type="time" label="Đến giờ" /></div><Field name="pricePerSlot" type="number" min="0" label="Giá mỗi slot" placeholder="120000" /><input type="hidden" name="priority" value="100" /><button className="primary-button" disabled={loading}>Thêm bảng giá</button></form></article><article className="account-group"><div className="panel-heading"><h2>Bảng giá hiện tại</h2><span>{rules.length}</span></div><div className="account-list">{rules.map((rule) => <div className="account-row" key={rule.id}><div><strong>{rule.name}</strong><span>{rule.start_time} - {rule.end_time} · {formatFullMoney(rule.price_per_slot)}/slot</span><small>{rule.court_code || rule.branch_name || 'Toàn hệ thống'} · {rule.is_active ? 'Đang áp dụng' : 'Tạm dừng'}</small></div><button type="button" className="danger-button small" disabled={loading} onClick={() => window.confirm('Xóa bảng giá này?') && onSave(`/price-rules/${rule.id}`, { method: 'DELETE' })}>Xóa</button></div>)}</div></article></section>
+}
+
+function OwnerPromotionPanel({ promotions, loading, onSave }) {
+  function submit(event) { event.preventDefault(); onSave('/promotions', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) }); event.currentTarget.reset() }
+  return <section className="management-grid two-col"><article className="feature-panel owner-court-form"><div className="panel-heading"><h2>Tạo khuyến mãi</h2><span>%</span></div><form onSubmit={submit}><Field name="code" label="Mã chương trình" placeholder="WEEKEND20" /><Field name="name" label="Tên chương trình" /><Field name="description" label="Mô tả" /><label>Loại giảm<select name="discountType"><option value="percentage">Theo phần trăm</option><option value="fixed_amount">Số tiền cố định</option></select></label><Field name="discountValue" type="number" min="1" label="Giá trị giảm" /><Field name="maxDiscountAmount" type="number" min="0" label="Giảm tối đa" /><Field name="minOrderAmount" type="number" min="0" label="Đơn tối thiểu" /><div className="owner-inline-fields"><Field name="startDate" type="datetime-local" label="Bắt đầu" /><Field name="endDate" type="datetime-local" label="Kết thúc" /></div><Field name="usageLimit" type="number" min="1" label="Giới hạn lượt dùng" /><button className="primary-button" disabled={loading}>Tạo khuyến mãi</button></form></article><article className="account-group"><div className="panel-heading"><h2>Khuyến mãi và mã giảm giá</h2><span>{promotions.length}</span></div><div className="account-list">{promotions.map((item) => <div className="account-row" key={item.id}><div><strong>{item.code} · {item.name}</strong><span>Giảm {item.discount_type === 'percentage' ? `${item.discount_value}%` : formatFullMoney(item.discount_value)}</span><small>Đã dùng {item.used_count}/{item.usage_limit || '∞'} · {item.is_active ? 'Đang bật' : 'Đã tắt'}</small></div><button className="danger-button small" type="button" disabled={loading} onClick={() => window.confirm('Xóa khuyến mãi này?') && onSave(`/promotions/${item.id}`, { method: 'DELETE' })}>Xóa</button></div>)}</div></article></section>
+}
+
+function OwnerReportsPanel({ workspace, dashboard }) {
+  const report=workspace.report||{}; const total=Number(report.total_bookings||dashboard.bookings?.length||0); const completed=Number(report.successful_bookings||0); const usage=total?Math.round(completed/total*100):0
+  return <section className="staff-workspace"><div className="staff-stat-grid owner-report-grid"><article><span>Tổng lượt đặt</span><strong>{total}</strong></article><article><span>Tỷ lệ sử dụng</span><strong>{usage}%</strong></article><article><span>Đơn bị hủy</span><strong>{report.cancelled_bookings||0}</strong></article><article><span>Doanh thu</span><strong>{formatFullMoney(report.revenue)}</strong></article></div><article className="staff-panel"><div className="panel-heading"><h2>Booking theo trạng thái</h2><span>{dashboard.date}</span></div><div className="report-bars">{(workspace.bookingStatuses||[]).map((item)=><div key={item.label}><span>{bookingStatusLabels[item.label]||item.label}</span><div><i style={{width:`${Math.max(8,total?Number(item.value)/total*100:0)}%`}} /></div><strong>{item.value}</strong></div>)}</div></article></section>
+}
+
+function OwnerFeedbackPanel({ items, loading, onSave }) { return <article className="staff-panel"><div className="panel-heading"><h2>Đánh giá và góp ý</h2><span>{items.length}</span></div><div className="feedback-grid">{items.map((item)=><div className="owner-admin-card" key={item.id}><div><strong>{'★'.repeat(item.rating)}{'☆'.repeat(5-item.rating)}</strong><small>{item.customer_name} · {item.booking_code}</small></div><p>{item.content||'Khách hàng không để lại nội dung.'}</p><small>{item.court_name} · {item.status}</small><div className="row-actions"><button type="button" className="secondary-button small" disabled={loading} onClick={()=>onSave(`/feedback/${item.id}`,{method:'PATCH',body:JSON.stringify({status:'reviewed'})})}>Đã xem</button><button type="button" className="primary-button small" disabled={loading} onClick={()=>onSave(`/feedback/${item.id}`,{method:'PATCH',body:JSON.stringify({status:'resolved'})})}>Đã phản hồi</button></div></div>)}</div></article> }
+
+function OwnerNotificationsPanel({ items, loading, onRefresh }) { return <article className="staff-panel"><div className="panel-heading"><h2>Thông báo hệ thống</h2><button className="secondary-button small" type="button" onClick={onRefresh} disabled={loading}>Làm mới</button></div><div className="notification-list">{items.map((item)=><div className={`notification-item ${item.type}`} key={item.id}><span>{item.type==='booking'?'B':item.type==='feedback'?'★':'!'}</span><div><strong>{item.title}</strong><small>{item.detail}</small></div></div>)}{!items.length&&<p className="empty-text">Không có thông báo mới.</p>}</div></article> }
 
 function CourtEditor({ branches, courtForm, editingCourtId, loading, onCourtField, onAddCourt, onCancelCourtEdit }) {
   return (
@@ -2425,8 +2529,9 @@ function CourtManagementList({ courts, loading, courtsLoading, onRefresh, onEdit
   )
 }
 
-function OwnerBookingPanel({ dashboard, loading, onRefresh, onBookingAction }) {
+function OwnerBookingPanel({ dashboard, loading, onRefresh, onBookingAction, onEditBooking }) {
   const bookings = dashboard.bookings || []
+  function editBooking(booking) { const bookingDate=window.prompt('Ngày đặt sân (YYYY-MM-DD)',String(booking.bookingDate||dashboard.date).slice(0,10)); if(!bookingDate)return; const startTime=window.prompt('Giờ bắt đầu (HH:mm)',booking.startTime||''); if(!startTime)return; const endTime=window.prompt('Giờ kết thúc (HH:mm)',booking.endTime||''); if(!endTime)return; onEditBooking(`/bookings/${booking.id}/reschedule`,{method:'PATCH',body:JSON.stringify({bookingDate,startTime,endTime})}) }
 
   return (
     <article className="staff-panel">
@@ -2471,6 +2576,7 @@ function OwnerBookingPanel({ dashboard, loading, onRefresh, onBookingAction }) {
                 </td>
                 <td>
                   <div className="row-actions">
+                    {!['cancelled', 'completed', 'expired'].includes(booking.bookingStatus) && <button type="button" className="secondary-button small" onClick={() => editBooking(booking)} disabled={loading}>Sửa lịch</button>}
                     {booking.bookingStatus === 'pending' && (
                       <button type="button" className="primary-button small" onClick={() => onBookingAction(booking, 'confirm')} disabled={loading}>Xác nhận</button>
                     )}
@@ -2497,7 +2603,7 @@ function OwnerBookingPanel({ dashboard, loading, onRefresh, onBookingAction }) {
   )
 }
 
-function OwnerServicesPanel({ addons, loading, onRefresh, onAddonStock }) {
+function OwnerServicesPanel({ addons, loading, onRefresh, onAddonStock, onManage }) {
   function updateStock(addon) {
     const nextValue = window.prompt(`Nhập số lượng mới cho ${addon.name}`, addon.stockQuantity)
     if (nextValue === null) {
@@ -2512,12 +2618,14 @@ function OwnerServicesPanel({ addons, loading, onRefresh, onAddonStock }) {
 
     onAddonStock(addon, stockQuantity)
   }
+  function addService(){const code=window.prompt('Mã dịch vụ','NEW-SERVICE');if(!code)return;const name=window.prompt('Tên dịch vụ');if(!name)return;const unitPrice=window.prompt('Đơn giá','50000');if(unitPrice===null)return;const stockQuantity=window.prompt('Số lượng','10');if(stockQuantity===null)return;onManage('/services',{method:'POST',body:JSON.stringify({code,name,unitPrice,stockQuantity,serviceType:'rental',status:'active'})})}
+  function editService(addon){const name=window.prompt('Tên dịch vụ',addon.name);if(!name)return;const unitPrice=window.prompt('Đơn giá',addon.unitPrice);if(unitPrice===null)return;onManage(`/services/${addon.id}`,{method:'PATCH',body:JSON.stringify({name,unitPrice,stockQuantity:addon.stockQuantity,serviceType:addon.serviceType,status:addon.status})})}
 
   return (
     <article className="staff-panel">
       <div className="panel-heading">
         <h2>Dịch vụ đi kèm</h2>
-        <button type="button" className="secondary-button small" onClick={onRefresh} disabled={loading}>Tải lại</button>
+        <div className="row-actions"><button type="button" className="primary-button small" onClick={addService} disabled={loading}>Thêm dịch vụ</button><button type="button" className="secondary-button small" onClick={onRefresh} disabled={loading}>Tải lại</button></div>
       </div>
       <div className="addon-grid">
         {addons.length === 0 && <p className="empty-text">Database chưa có dịch vụ đi kèm.</p>}
@@ -2532,8 +2640,8 @@ function OwnerServicesPanel({ addons, loading, onRefresh, onAddonStock }) {
               <span className={`inventory-status ${addon.status === 'active' ? 'active' : 'inactive'}`}>{addon.status}</span>
               <strong>{addon.stockQuantity}</strong>
               <small>{formatFullMoney(addon.unitPrice)}</small>
-              <button type="button" className="secondary-button small" onClick={() => updateStock(addon)} disabled={loading}>Cập nhật</button>
             </div>
+            <div className="addon-actions"><button type="button" className="secondary-button small" onClick={() => updateStock(addon)} disabled={loading}>Tồn kho</button><button type="button" className="secondary-button small" onClick={() => editService(addon)} disabled={loading}>Sửa</button><button type="button" className="danger-button small" onClick={() => window.confirm('Xóa dịch vụ này?') && onManage(`/services/${addon.id}`, { method: 'DELETE' })} disabled={loading}>Xóa</button></div>
           </div>
         ))}
       </div>

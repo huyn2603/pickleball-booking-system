@@ -751,6 +751,56 @@ select:focus {
   min-width: 0;
 }
 
+/* Owner pages live inside the admin shell, so their legacy dashboard
+   wrappers should fill the available content column instead of reserving
+   two empty grid columns. */
+.owner-admin-shell {
+  width: min(1540px, calc(100% - 48px));
+}
+
+.owner-admin-shell .admin-page > *,
+.owner-admin-shell .account-group,
+.owner-admin-shell .staff-panel,
+.owner-admin-shell .feature-panel {
+  min-width: 0;
+}
+
+.owner-admin-shell .management-grid,
+.owner-admin-shell .staff-workspace {
+  width: 100%;
+  margin: 0;
+}
+
+.owner-admin-shell .management-grid:not(.two-col) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.owner-admin-shell .management-grid.two-col {
+  grid-template-columns: minmax(340px, 430px) minmax(0, 1fr);
+}
+
+.owner-admin-shell .account-row > div:first-child {
+  flex: 1 1 420px;
+}
+
+.owner-admin-shell .inline-search {
+  width: min(100%, 620px);
+}
+
+.owner-admin-shell .owner-court-form form,
+.owner-admin-shell .owner-court-form label,
+.owner-admin-shell .owner-court-form input,
+.owner-admin-shell .owner-court-form select,
+.owner-admin-shell .owner-inline-fields {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.owner-admin-shell .owner-inline-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .admin-page-header {
   display: flex;
   align-items: end;
@@ -840,6 +890,8 @@ select:focus {
   background: var(--success);
   color: #fff;
 }
+
+.owner-card-grid,.feedback-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:18px}.owner-admin-card{display:grid;gap:12px;border:1px solid var(--hairline);border-radius:8px;padding:18px;background:var(--canvas)}.owner-admin-card>div:first-child,.owner-admin-card label{display:grid;gap:5px}.owner-admin-card small{color:var(--mute)}.owner-admin-card p{min-height:46px;margin:0;line-height:1.55}.owner-inline-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.owner-report-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.report-bars{display:grid;gap:16px;margin-top:20px}.report-bars>div{display:grid;grid-template-columns:150px minmax(120px,1fr) 42px;align-items:center;gap:14px}.report-bars>div>div{height:12px;overflow:hidden;border-radius:99px;background:var(--soft-cloud)}.report-bars i{display:block;height:100%;border-radius:inherit;background:var(--success)}.notification-list{display:grid;gap:12px;margin-top:18px}.notification-item{display:flex;align-items:center;gap:14px;border:1px solid var(--hairline);border-radius:8px;padding:16px}.notification-item>span{width:38px;height:38px;display:grid;place-items:center;flex:0 0 auto;border-radius:50%;background:#e8f7ef;color:var(--success);font-weight:900}.notification-item.stock>span{background:#fff2dc;color:#a55c00}.notification-item.feedback>span{background:#fff6c8;color:#8a6500}.notification-item>div{display:grid;gap:4px}.notification-item small{color:var(--mute)}
 
 .management-grid.two-col {
   grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
@@ -1010,6 +1062,33 @@ select:focus {
 .addon-stock > strong {
   font-size: 36px;
   line-height: 1;
+}
+
+.owner-admin-shell .addon-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(130px, 1fr) auto;
+  align-items: start;
+}
+
+.owner-admin-shell .addon-stock {
+  height: 100%;
+}
+
+.owner-admin-shell .addon-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  padding-top: 14px;
+  border-top: 1px solid #ededed;
+}
+
+.owner-admin-shell .addon-actions button {
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .inventory-status {
@@ -2465,6 +2544,14 @@ select:focus {
 }
 
 @media (max-width: 720px) {
+  .owner-admin-shell .management-grid.two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-admin-shell .inline-search {
+    width: 100%;
+  }
+
   .utility-nav {
     display: none;
   }

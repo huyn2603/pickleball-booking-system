@@ -1,0 +1,18 @@
+const router = require('express').Router();
+const controller = require('../controllers/ownerController');
+const requireAuth = require('../middleware/auth');
+router.use(requireAuth);
+router.get('/workspace', controller.workspace);
+router.patch('/schedules/:id', controller.schedule);
+router.post('/price-rules', controller.price);
+router.patch('/price-rules/:id', controller.price);
+router.delete('/price-rules/:id', controller.removePrice);
+router.post('/promotions', controller.promotion);
+router.patch('/promotions/:id', controller.promotion);
+router.delete('/promotions/:id', controller.removePromotion);
+router.patch('/feedback/:id', controller.feedback);
+router.patch('/bookings/:id/reschedule', controller.reschedule);
+router.post('/services', controller.service);
+router.patch('/services/:id', controller.service);
+router.delete('/services/:id', controller.removeService);
+module.exports = router;
