@@ -45,12 +45,14 @@ async function dashboard(req, res) {
 
     await Booking.expirePendingBookings();
 
-    const [bookings, addons] = await Promise.all([
-      Staff.listTodayBookings(date),
+    const search = String(req.query.search || '').trim().slice(0, 100);
+    const [bookings, addons, courts] = await Promise.all([
+      Staff.listTodayBookings(date, req.user, search),
       Staff.listAddons(),
+      Staff.listCourts(req.user),
     ]);
 
-    return res.json({ success: true, date, bookings, addons });
+    return res.json({ success: true, date, search, bookings, addons, courts });
   } catch (error) {
     console.error('Staff dashboard error:', error);
     return sendError(res, 500, 'Loi may chu khi tai dashboard Staff.');
@@ -68,7 +70,7 @@ async function checkIn(req, res) {
       return sendError(res, 400, 'Ma booking khong hop le.');
     }
 
-    const booking = await Staff.checkIn(bookingId, req.user.id);
+    const booking = await Staff.checkIn(bookingId, req.user);
     return res.json({ success: true, booking, message: 'Check-in thanh cong.' });
   } catch (error) {
     console.error('Staff check-in error:', error);
@@ -87,7 +89,7 @@ async function confirmBooking(req, res) {
       return sendError(res, 400, 'Ma booking khong hop le.');
     }
 
-    const booking = await Staff.confirmBooking(bookingId, req.user.id);
+    const booking = await Staff.confirmBooking(bookingId, req.user);
     return res.json({ success: true, booking, message: 'Da xac nhan booking.' });
   } catch (error) {
     console.error('Staff confirm booking error:', error);
@@ -106,7 +108,7 @@ async function cancelBooking(req, res) {
       return sendError(res, 400, 'Ma booking khong hop le.');
     }
 
-    const booking = await Staff.cancelBooking(bookingId, req.user.id, req.body?.cancelReason);
+    const booking = await Staff.cancelBooking(bookingId, req.user, req.body?.cancelReason);
     return res.json({ success: true, booking, message: 'Da huy booking.' });
   } catch (error) {
     console.error('Staff cancel booking error:', error);
@@ -125,7 +127,7 @@ async function checkOut(req, res) {
       return sendError(res, 400, 'Ma booking khong hop le.');
     }
 
-    const result = await Staff.checkOut(bookingId, req.user.id);
+    const result = await Staff.checkOut(bookingId, req.user);
     return res.json({ success: true, ...result, message: 'Check-out thanh cong.' });
   } catch (error) {
     console.error('Staff check-out error:', error);
@@ -151,7 +153,7 @@ async function recordPayment(req, res) {
 
     const booking = await Staff.recordCounterPayment({
       bookingId,
-      staffId: req.user.id,
+      operator: req.user,
       paymentMethod,
       note: req.body.note,
     });
@@ -175,7 +177,7 @@ async function updateAddonStock(req, res) {
       return sendError(res, 400, 'So luong addon khong hop le.');
     }
 
-    const addon = await Staff.updateAddonStock(addonId, stockQuantity);
+    const addon = await Staff.updateAddonStock(addonId, stockQuantity, req.user);
     if (!addon) {
       return sendError(res, 404, 'Khong tim thay addon.');
     }
@@ -187,12 +189,65 @@ async function updateAddonStock(req, res) {
   }
 }
 
+async function markNoShow(req, res) {
+  try {
+    if (!requireStaffRole(req, res)) {
+      return null;
+    }
+
+    const bookingId = parseId(req.params.id);
+    if (!bookingId) {
+      return sendError(res, 400, 'Mã booking không hợp lệ.');
+    }
+
+    const booking = await Staff.markNoShow(bookingId, req.user, req.body?.reason);
+    return res.json({ success: true, booking, message: 'Đã đánh dấu khách không đến sân.' });
+  } catch (error) {
+    console.error('Staff no-show error:', error);
+    return sendError(res, error.status || 500, error.message || 'Lỗi máy chủ khi cập nhật no-show.');
+  }
+}
+
+async function updateCourtStatus(req, res) {
+  try {
+    if (!requireStaffRole(req, res)) {
+      return null;
+    }
+
+    const courtId = parseId(req.params.id);
+    const status = req.body?.status;
+    if (!courtId || !['available', 'maintenance'].includes(status)) {
+      return sendError(res, 400, 'Sân hoặc trạng thái không hợp lệ.');
+    }
+    if (status === 'maintenance' && !String(req.body?.reason || '').trim()) {
+      return sendError(res, 400, 'Vui lòng nhập lý do bảo trì.');
+    }
+
+    const result = await Staff.setCourtStatus({
+      courtId,
+      operator: req.user,
+      status,
+      reason: req.body?.reason,
+    });
+    const affectedCount = result.affectedBookings.length;
+    const message = status === 'maintenance'
+      ? `Đã chuyển sân sang bảo trì. Có ${affectedCount} booking cần xử lý.`
+      : 'Đã mở lại sân.';
+    return res.json({ success: true, ...result, message });
+  } catch (error) {
+    console.error('Staff court status error:', error);
+    return sendError(res, error.status || 500, error.message || 'Lỗi máy chủ khi cập nhật sân.');
+  }
+}
+
 module.exports = {
   cancelBooking,
   checkIn,
   checkOut,
   confirmBooking,
   dashboard,
+  markNoShow,
   recordPayment,
+  updateCourtStatus,
   updateAddonStock,
 };

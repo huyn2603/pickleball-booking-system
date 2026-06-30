@@ -188,7 +188,13 @@ function App() {
   const [forgotPasswordStep, setForgotPasswordStep] = useState('request')
   const [resetToken, setResetToken] = useState('')
   const [accountsLoading, setAccountsLoading] = useState(false)
-  const [staffDashboard, setStaffDashboard] = useState({ date: getTodayString(), bookings: [], addons: [] })
+  const [staffDashboard, setStaffDashboard] = useState({
+    date: getTodayString(),
+    search: '',
+    bookings: [],
+    addons: [],
+    courts: [],
+  })
   const [staffLoading, setStaffLoading] = useState(false)
   const [myBookings, setMyBookings] = useState([])
   const [myBookingsLoading, setMyBookingsLoading] = useState(false)
@@ -693,14 +699,21 @@ function App() {
     }
   }
 
-  async function fetchStaffDashboard() {
+  async function fetchStaffDashboard(filters = {}) {
     if (!session?.token) {
       return
     }
 
+    const date = filters.date ?? staffDashboard.date
+    const search = filters.search ?? staffDashboard.search ?? ''
+    const params = new URLSearchParams({ date })
+    if (search.trim()) {
+      params.set('search', search.trim())
+    }
+
     setStaffLoading(true)
     try {
-      const response = await fetch(`${API_URL}/staff/dashboard?date=${staffDashboard.date}`, {
+      const response = await fetch(`${API_URL}/staff/dashboard?${params.toString()}`, {
         headers: { Authorization: `Bearer ${session.token}` },
       })
       const data = await response.json()
@@ -711,8 +724,10 @@ function App() {
 
       setStaffDashboard({
         date: data.date,
+        search,
         bookings: data.bookings || [],
         addons: data.addons || [],
+        courts: data.courts || [],
       })
     } catch (error) {
       setMessage(error.message)
@@ -753,6 +768,7 @@ function App() {
       cancel: `/staff/bookings/${booking.id}/cancel`,
       checkIn: `/staff/bookings/${booking.id}/check-in`,
       checkOut: `/staff/bookings/${booking.id}/check-out`,
+      noShow: `/staff/bookings/${booking.id}/no-show`,
       payment: `/staff/bookings/${booking.id}/payment`,
     }
 
@@ -765,7 +781,7 @@ function App() {
           Authorization: `Bearer ${session.token}`,
           'Content-Type': 'application/json',
         },
-        body: ['payment', 'cancel'].includes(action) ? JSON.stringify(extra) : undefined,
+        body: ['payment', 'cancel', 'noShow'].includes(action) ? JSON.stringify(extra) : undefined,
       })
       const data = await response.json()
 
@@ -775,6 +791,45 @@ function App() {
 
       setMessage(data.extraMinutes ? `${data.message} Phat sinh ${data.extraMinutes} phut.` : data.message)
       setMessageType('success')
+      await fetchStaffDashboard()
+    } catch (error) {
+      setMessage(error.message)
+      setMessageType('error')
+    } finally {
+      setStaffLoading(false)
+    }
+  }
+
+  async function handleStaffCourtStatus(court, status) {
+    const reason = status === 'maintenance'
+      ? window.prompt(`Nhập lý do bảo trì ${court.code} - ${court.name}`)
+      : 'Hoàn tất bảo trì'
+    if (reason === null || (status === 'maintenance' && !reason.trim())) {
+      return
+    }
+
+    setStaffLoading(true)
+    resetNotice()
+    try {
+      const response = await fetch(`${API_URL}/staff/courts/${court.id}/status`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status, reason }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể cập nhật trạng thái sân.')
+      }
+
+      const affected = data.affectedBookings || []
+      const details = affected.length
+        ? ` Booking ảnh hưởng: ${affected.map((item) => item.bookingCode).join(', ')}.`
+        : ''
+      setMessage(`${data.message}${details}`)
+      setMessageType(affected.length ? 'error' : 'success')
       await fetchStaffDashboard()
     } catch (error) {
       setMessage(error.message)
@@ -1655,6 +1710,7 @@ function App() {
               onRefresh={fetchStaffDashboard}
               onBookingAction={handleStaffBookingAction}
               onAddonStock={handleAddonStock}
+              onCourtStatus={handleStaffCourtStatus}
             />
           )}
           {role === 'Customer' && <CustomerTools />}
@@ -2250,11 +2306,26 @@ function StaffTools() {
   )
 }
 
-function StaffToolsPanel({ dashboard, loading, onRefresh, onBookingAction, onAddonStock }) {
+function StaffToolsPanel({ dashboard, loading, onRefresh, onBookingAction, onAddonStock, onCourtStatus }) {
   const bookings = dashboard.bookings || []
   const addons = dashboard.addons || []
+  const courts = dashboard.courts || []
   const totalRevenue = bookings.reduce((sum, booking) => sum + Number(booking.paidAmount || 0), 0)
   const activeBookings = bookings.filter((booking) => ['confirmed', 'checked_in'].includes(booking.bookingStatus)).length
+
+  function cancelBooking(booking) {
+    const cancelReason = window.prompt(`Nhập lý do hủy booking ${booking.bookingCode}`)
+    if (cancelReason?.trim()) {
+      onBookingAction(booking, 'cancel', { cancelReason })
+    }
+  }
+
+  function markNoShow(booking) {
+    const reason = window.prompt(`Lý do no-show cho booking ${booking.bookingCode}`, 'Khách không đến sân')
+    if (reason?.trim()) {
+      onBookingAction(booking, 'noShow', { reason })
+    }
+  }
 
   function updateStock(addon) {
     const display = addonDisplay[addon.code] || {}
@@ -2295,6 +2366,34 @@ function StaffToolsPanel({ dashboard, loading, onRefresh, onBookingAction, onAdd
           <button type="button" className="secondary-button small" onClick={onRefresh} disabled={loading}>
             {loading ? 'Đang tải...' : 'Tải lại'}
           </button>
+        </div>
+        <div className="staff-filter-bar">
+          <label>
+            Ngày vận hành
+            <input
+              type="date"
+              value={dashboard.date}
+              onChange={(event) => onRefresh({ date: event.target.value })}
+            />
+          </label>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              const search = new FormData(event.currentTarget).get('staffSearch')
+              onRefresh({ search: String(search || '') })
+            }}
+          >
+            <label>
+              Tìm booking
+              <input
+                name="staffSearch"
+                defaultValue={dashboard.search}
+                placeholder="Mã, tên, email hoặc SĐT"
+              />
+            </label>
+            <button type="submit" className="secondary-button small" disabled={loading}>Tìm</button>
+            <button type="button" className="secondary-button small" onClick={() => onRefresh({ search: '' })} disabled={loading}>Xóa lọc</button>
+          </form>
         </div>
         <div className="staff-table-wrap">
           <table className="staff-table">
@@ -2341,14 +2440,29 @@ function StaffToolsPanel({ dashboard, loading, onRefresh, onBookingAction, onAdd
                           Thu tiền
                         </button>
                       )}
-                      {booking.bookingStatus === 'confirmed' && (
-                        <button type="button" className="primary-button small" onClick={() => onBookingAction(booking, 'checkIn')} disabled={loading}>
-                          Check-in
+                      {booking.bookingStatus === 'pending' && (
+                        <button type="button" className="primary-button small" onClick={() => onBookingAction(booking, 'confirm')} disabled={loading}>
+                          Xác nhận
                         </button>
+                      )}
+                      {booking.bookingStatus === 'confirmed' && (
+                        <>
+                          <button type="button" className="primary-button small" onClick={() => onBookingAction(booking, 'checkIn')} disabled={loading}>
+                            Check-in
+                          </button>
+                          <button type="button" className="secondary-button small" onClick={() => markNoShow(booking)} disabled={loading}>
+                            No-show
+                          </button>
+                        </>
                       )}
                       {booking.bookingStatus === 'checked_in' && (
                         <button type="button" className="primary-button small" onClick={() => onBookingAction(booking, 'checkOut')} disabled={loading}>
                           Check-out
+                        </button>
+                      )}
+                      {['pending', 'confirmed', 'checked_in'].includes(booking.bookingStatus) && (
+                        <button type="button" className="danger-button small" onClick={() => cancelBooking(booking)} disabled={loading}>
+                          Hủy
                         </button>
                       )}
                     </div>
@@ -2357,6 +2471,34 @@ function StaffToolsPanel({ dashboard, loading, onRefresh, onBookingAction, onAdd
               ))}
             </tbody>
           </table>
+        </div>
+      </article>
+
+      <article className="staff-panel">
+        <div className="panel-heading">
+          <h2>Trạng thái sân tại chi nhánh</h2>
+          <span>{courts.length}</span>
+        </div>
+        <div className="staff-court-grid">
+          {courts.length === 0 && <p className="empty-text">Chưa có sân trong phạm vi được phân công.</p>}
+          {courts.map((court) => (
+            <div className={`staff-court-card ${court.status}`} key={court.id}>
+              <div>
+                <small>{court.branchName}</small>
+                <strong>{court.code} - {court.name}</strong>
+                <span>{court.status === 'maintenance' ? 'Đang bảo trì' : court.status === 'available' ? 'Đang hoạt động' : 'Tạm ngưng'}</span>
+              </div>
+              {court.status === 'maintenance' ? (
+                <button type="button" className="primary-button small" onClick={() => onCourtStatus(court, 'available')} disabled={loading}>
+                  Mở lại sân
+                </button>
+              ) : (
+                <button type="button" className="secondary-button small" onClick={() => onCourtStatus(court, 'maintenance')} disabled={loading || court.status === 'inactive'}>
+                  Bảo trì
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       </article>
 

@@ -9,7 +9,9 @@ router.post('/bookings/:id/confirm', requireAuth, staffController.confirmBooking
 router.post('/bookings/:id/cancel', requireAuth, staffController.cancelBooking);
 router.post('/bookings/:id/check-in', requireAuth, staffController.checkIn);
 router.post('/bookings/:id/check-out', requireAuth, staffController.checkOut);
+router.post('/bookings/:id/no-show', requireAuth, staffController.markNoShow);
 router.post('/bookings/:id/payment', requireAuth, staffController.recordPayment);
+router.patch('/courts/:id/status', requireAuth, staffController.updateCourtStatus);
 router.patch('/addons/:id/stock', requireAuth, staffController.updateAddonStock);
 
 module.exports = router;
